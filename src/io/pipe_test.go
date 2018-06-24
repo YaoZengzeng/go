@@ -47,17 +47,20 @@ func reader(t *testing.T, r Reader, c chan int) {
 	for {
 		n, err := r.Read(buf)
 		if err == EOF {
+			// 如果读到EOF，从管道返回0
 			c <- 0
 			break
 		}
 		if err != nil {
 			t.Errorf("read: %v", err)
 		}
+		// 否则从管道返回本次读取到字节数
 		c <- n
 	}
 }
 
 // Test a sequence of read/write pairs.
+// 测试串行的read/write对
 func TestPipe2(t *testing.T) {
 	c := make(chan int)
 	r, w := Pipe()
@@ -90,6 +93,7 @@ type pipeReturn struct {
 }
 
 // Test a large write that requires multiple reads to satisfy.
+// 创建一个大的write，需要多个reads来满足
 func writer(w WriteCloser, buf []byte, c chan pipeReturn) {
 	n, err := w.Write(buf)
 	w.Close()
@@ -115,8 +119,10 @@ func TestPipe3(t *testing.T) {
 		// only final two reads should be short - 1 byte, then 0
 		expect := n
 		if n == 128 {
+			// 当n为128时，仅剩一字节
 			expect = 1
 		} else if n == 256 {
+			// 当n为256时，已经write end已经没有字节了
 			expect = 0
 			if err != EOF {
 				t.Fatalf("read at end: %v", err)
@@ -171,6 +177,7 @@ func delayClose(t *testing.T, cl closer, ch chan int, tt pipeTest) {
 	time.Sleep(1 * time.Millisecond)
 	var err error
 	if tt.closeWithError {
+		// 当closeWithError为true的时候，设置err为tt.err
 		err = cl.CloseWithError(tt.err)
 	} else {
 		err = cl.Close()
@@ -301,7 +308,7 @@ func TestWriteAfterWriterClose(t *testing.T) {
 
 	buf := make([]byte, 100)
 	var result string
-	n, err := ReadFull(r, buf)
+	n, err := io.ReadFull(r, buf)
 	if err != nil && err != ErrUnexpectedEOF {
 		t.Fatalf("got: %q; want: %q", err, ErrUnexpectedEOF)
 	}
@@ -353,6 +360,7 @@ func TestPipeConcurrent(t *testing.T) {
 
 		for i := 0; i < count; i++ {
 			go func() {
+				// 有count个写操作
 				time.Sleep(time.Millisecond) // Increase probability of race
 				if n, err := w.Write([]byte(input)); n != len(input) || err != nil {
 					t.Errorf("Write() = (%d, %v); want (%d, nil)", n, err, len(input))
@@ -362,6 +370,7 @@ func TestPipeConcurrent(t *testing.T) {
 
 		buf := make([]byte, count*len(input))
 		for i := 0; i < len(buf); i += readSize {
+			// 每次只读取两个字节
 			if n, err := r.Read(buf[i : i+readSize]); n != readSize || err != nil {
 				t.Errorf("Read() = (%d, %v); want (%d, nil)", n, err, readSize)
 			}
@@ -379,8 +388,10 @@ func TestPipeConcurrent(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		r, w := Pipe()
 
+		// channel的缓存刚好放下所有的数据
 		c := make(chan []byte, count*len(input)/readSize)
 		for i := 0; i < cap(c); i++ {
+			// 启动cap(c)个goroutine
 			go func() {
 				time.Sleep(time.Millisecond) // Increase probability of race
 				buf := make([]byte, readSize)
@@ -392,6 +403,7 @@ func TestPipeConcurrent(t *testing.T) {
 		}
 
 		for i := 0; i < count; i++ {
+			// 分count次写入
 			if n, err := w.Write([]byte(input)); n != len(input) || err != nil {
 				t.Errorf("Write() = (%d, %v); want (%d, nil)", n, err, len(input))
 			}
@@ -399,6 +411,7 @@ func TestPipeConcurrent(t *testing.T) {
 
 		// Since each read is independent, the only guarantee about the output
 		// is that it is a permutation of the input in readSized groups.
+		// 因为每次写操作是互不依赖的，output唯一能保证的是它是在大小为readSized groups里的排列
 		got := make([]byte, 0, count*len(input))
 		for i := 0; i < cap(c); i++ {
 			got = append(got, (<-c)...)
@@ -414,6 +427,7 @@ func TestPipeConcurrent(t *testing.T) {
 
 func sortBytesInGroups(b []byte, n int) []byte {
 	var groups [][]byte
+	// 将b划分为大小为n的各组
 	for len(b) > 0 {
 		groups = append(groups, b[:n])
 		b = b[n:]

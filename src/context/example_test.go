@@ -61,6 +61,8 @@ func ExampleWithDeadline() {
 	// Even though ctx will be expired, it is good practice to call its
 	// cancelation function in any case. Failure to do so may keep the
 	// context and its parent alive longer than necessary.
+	// 即使ctx会过期，但是不管在任何情况下调用cancel()函数总是好的
+	// 不调用可能会一直保持context以及它的父context的时间过长
 	defer cancel()
 
 	select {

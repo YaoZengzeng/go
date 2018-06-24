@@ -18,9 +18,12 @@ type Element struct {
 	// as a ring, such that &l.root is both the next element of the last
 	// list element (l.Back()) and the previous element of the first list
 	// element (l.Front()).
+	// 为了简化实现，在内部list l被实现为一个ring，&l.root同时是最后一个list element
+	// 的next element，也是第一个list element的previous element
 	next, prev *Element
 
 	// The list to which this element belongs.
+	// 这个element所属的list
 	list *List
 
 	// The value stored with this element.
@@ -29,6 +32,8 @@ type Element struct {
 
 // Next returns the next list element or nil.
 func (e *Element) Next() *Element {
+	// 当e.list不为nil且e.next不等于&e.list.root，则返回e.next
+	// 否则返回nil
 	if p := e.next; e.list != nil && p != &e.list.root {
 		return p
 	}
@@ -45,8 +50,12 @@ func (e *Element) Prev() *Element {
 
 // List represents a doubly linked list.
 // The zero value for List is an empty list ready to use.
+// List代表了一个双向链表
+// List的零值表示一个准备使用的empty list
 type List struct {
+	// 列表中的哨兵元素，只有&root, root.prev和root.next会被使用
 	root Element // sentinel list element, only &root, root.prev, and root.next are used
+	// 除了sentinel element以外，当前list的长度
 	len  int     // current list length excluding (this) sentinel element
 }
 
@@ -101,6 +110,7 @@ func (l *List) insert(e, at *Element) *Element {
 }
 
 // insertValue is a convenience wrapper for insert(&Element{Value: v}, at).
+// insertValue只是对insert(&Element{Value: v}, at)的一个简单封装
 func (l *List) insertValue(v interface{}, at *Element) *Element {
 	return l.insert(&Element{Value: v}, at)
 }
@@ -144,6 +154,8 @@ func (l *List) PushBack(v interface{}) *Element {
 // If mark is not an element of l, the list is not modified.
 // The mark must not be nil.
 func (l *List) InsertBefore(v interface{}, mark *Element) *Element {
+	// 如果mark不是l的element，则list不做修改
+	// mark一定不能为nil
 	if mark.list != l {
 		return nil
 	}
@@ -166,6 +178,7 @@ func (l *List) InsertAfter(v interface{}, mark *Element) *Element {
 // If e is not an element of l, the list is not modified.
 // The element must not be nil.
 func (l *List) MoveToFront(e *Element) {
+	// 如果e不是list中的元素，或者e已经是处于Front了，则不做处理
 	if e.list != l || l.root.next == e {
 		return
 	}
@@ -187,7 +200,9 @@ func (l *List) MoveToBack(e *Element) {
 // MoveBefore moves element e to its new position before mark.
 // If e or mark is not an element of l, or e == mark, the list is not modified.
 // The element and mark must not be nil.
+// element和mark都不能为nil
 func (l *List) MoveBefore(e, mark *Element) {
+	// 如果e或者mark不是l的元素，或者e == mark，list不做修改
 	if e.list != l || e == mark || mark.list != l {
 		return
 	}
@@ -206,9 +221,12 @@ func (l *List) MoveAfter(e, mark *Element) {
 
 // PushBackList inserts a copy of an other list at the back of list l.
 // The lists l and other may be the same. They must not be nil.
+// 将other list的拷贝插入到list l的后端
 func (l *List) PushBackList(other *List) {
 	l.lazyInit()
+	// 遍历others，插入
 	for i, e := other.Len(), other.Front(); i > 0; i, e = i-1, e.Next() {
+		// 插入到root的前部
 		l.insertValue(e.Value, l.root.prev)
 	}
 }
@@ -218,6 +236,7 @@ func (l *List) PushBackList(other *List) {
 func (l *List) PushFrontList(other *List) {
 	l.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
+		// 插入到root的后部
 		l.insertValue(e.Value, &l.root)
 	}
 }

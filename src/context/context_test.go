@@ -94,6 +94,7 @@ func XTestWithCancel(t testingT) {
 	}
 
 	cancel()
+	// 让cancelation传播
 	time.Sleep(100 * time.Millisecond) // let cancelation propagate
 
 	for i, c := range contexts {
@@ -173,12 +174,14 @@ func XTestParentFinishesChild(t testingT) {
 			t.Errorf("%s.Err() == %v want %v", name, e, Canceled)
 		}
 	}
+	// 所有context都应该结束
 	check(parent, "parent")
 	check(cancelChild, "cancelChild")
 	check(valueChild, "valueChild")
 	check(timerChild, "timerChild")
 
 	// WithCancel should return a canceled context on a canceled parent.
+	// 在一个已经cancel的context，只能创建一个canceled context
 	precanceledChild := WithValue(parent, "key", "value")
 	select {
 	case <-precanceledChild.Done():
@@ -218,10 +221,12 @@ func XTestChildFinishesFirst(t testingT) {
 			pc.mu.Unlock()
 		}
 
+		// cancec子context
 		cancel()
 
 		if pcok {
 			pc.mu.Lock()
+			// 子context cancel之后，应该自动从parent的children中退出
 			if len(pc.children) != 0 {
 				t.Errorf("child's cancel didn't remove self from pc.children = %v", pc.children)
 			}
@@ -446,6 +451,8 @@ func XTestSimultaneousCancels(t testingT) {
 	m := map[Context]CancelFunc{root: cancel}
 	q := []Context{root}
 	// Create a tree of contexts.
+	// 创建一个context tree，每个节点4个孩子
+	// 总共100个节点
 	for len(q) != 0 && len(m) < 100 {
 		parent := q[0]
 		q = q[1:]
@@ -458,6 +465,7 @@ func XTestSimultaneousCancels(t testingT) {
 	// Start all the cancels in a random order.
 	var wg sync.WaitGroup
 	wg.Add(len(m))
+	// 以随机顺序调用cancel
 	for _, cancel := range m {
 		go func(cancel CancelFunc) {
 			cancel()
@@ -465,6 +473,7 @@ func XTestSimultaneousCancels(t testingT) {
 		}(cancel)
 	}
 	// Wait on all the contexts in a random order.
+	// 以随机顺序等待所有context结束
 	for ctx := range m {
 		select {
 		case <-ctx.Done():
@@ -475,6 +484,7 @@ func XTestSimultaneousCancels(t testingT) {
 		}
 	}
 	// Wait for all the cancel functions to return.
+	// 等待所有context返回
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()

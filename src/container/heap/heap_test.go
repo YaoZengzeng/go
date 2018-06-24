@@ -37,6 +37,7 @@ func (h myHeap) verify(t *testing.T, i int) {
 	n := h.Len()
 	j1 := 2*i + 1
 	j2 := 2*i + 2
+	// 递归确认从i开始的子节点都小于它
 	if j1 < n {
 		if h.Less(j1, i) {
 			t.Errorf("heap invariant invalidated [%d] = %d > [%d] = %d", i, h[i], j1, h[j1])
@@ -56,6 +57,7 @@ func (h myHeap) verify(t *testing.T, i int) {
 func TestInit0(t *testing.T) {
 	h := new(myHeap)
 	for i := 20; i > 0; i-- {
+		// 加入heap的元素都为0
 		h.Push(0) // all elements are the same
 	}
 	Init(h)
@@ -73,12 +75,14 @@ func TestInit0(t *testing.T) {
 func TestInit1(t *testing.T) {
 	h := new(myHeap)
 	for i := 20; i > 0; i-- {
+		// 按从大到小的顺序往heap中加入元素
 		h.Push(i) // all elements are different
 	}
 	Init(h)
 	h.verify(t, 0)
 
 	for i := 1; h.Len() > 0; i++ {
+		// 每次pop一个元素，再来确定整棵树是否满足堆的特性
 		x := Pop(h).(int)
 		h.verify(t, 0)
 		if x != i {
@@ -123,6 +127,7 @@ func TestRemove0(t *testing.T) {
 
 	for h.Len() > 0 {
 		i := h.Len() - 1
+		// 移除heap中最后一个元素
 		x := Remove(h, i).(int)
 		if x != i {
 			t.Errorf("Remove(%d) got %d; want %d", i, x, i)
@@ -139,6 +144,7 @@ func TestRemove1(t *testing.T) {
 	h.verify(t, 0)
 
 	for i := 0; h.Len() > 0; i++ {
+		// 移除heap中首个元素
 		x := Remove(h, 0).(int)
 		if x != i {
 			t.Errorf("Remove(0) got %d; want %d", x, i)
@@ -156,6 +162,7 @@ func TestRemove2(t *testing.T) {
 	}
 	h.verify(t, 0)
 
+	// m用于记录已经移除的元素
 	m := make(map[int]bool)
 	for h.Len() > 0 {
 		m[Remove(h, (h.Len()-1)/2).(int)] = true
@@ -202,6 +209,7 @@ func TestFix(t *testing.T) {
 	h.verify(t, 0)
 
 	for i := 100; i > 0; i-- {
+		// 随机对元素进行修改
 		elem := rand.Intn(h.Len())
 		if i&1 == 0 {
 			(*h)[elem] *= 2

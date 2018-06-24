@@ -100,6 +100,7 @@ func TestNewBufferString(t *testing.T) {
 
 // Empty buf through repeated reads into fub.
 // The initial contents of buf corresponds to the string s.
+// 通过持续地读入fub来清空buf，buf的初始内容为string s
 func empty(t *testing.T, testname string, buf *Buffer, s string, fub []byte) {
 	check(t, testname+" (empty 1)", buf, s)
 

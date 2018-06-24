@@ -349,15 +349,21 @@ func CopyN(dst Writer, src Reader, n int64) (written int64, err error) {
 // Copy copies from src to dst until either EOF is reached
 // on src or an error occurs. It returns the number of bytes
 // copied and the first error encountered while copying, if any.
+// Copy从src拷贝数据到dst直到src读到EOF或者出现了error，它返回拷贝的字节数
+// 以及在拷贝过程中第一次遇到的error，如果有的话
 //
 // A successful Copy returns err == nil, not err == EOF.
 // Because Copy is defined to read from src until EOF, it does
 // not treat an EOF from Read as an error to be reported.
+// 一次成功的Copy返回err == nil，而不是err == EOF，因为Copy被定义为从src
+// 读直到EOF，它并不把从Read返回的EOF作为error
 //
 // If src implements the WriterTo interface,
 // the copy is implemented by calling src.WriteTo(dst).
+// 如果src实现了WriteTo接口，则copy通过调用src.WriteTo(dst)来实现
 // Otherwise, if dst implements the ReaderFrom interface,
 // the copy is implemented by calling dst.ReadFrom(src).
+// 否则，如果dst实现了ReaderFrom接口，则copy通过调用dst.ReadFrom(src)来实现
 func Copy(dst Writer, src Reader) (written int64, err error) {
 	return copyBuffer(dst, src, nil)
 }
@@ -413,6 +419,7 @@ func copyBuffer(dst Writer, src Reader, buf []byte) (written int64, err error) {
 			}
 		}
 		if er != nil {
+			// 如果读到了非EOF的error，则返回
 			if er != EOF {
 				err = er
 			}

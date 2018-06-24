@@ -16,6 +16,7 @@ type Interface interface {
 	Len() int
 	// Less reports whether the element with
 	// index i should sort before the element with index j.
+	// Less用于判断下标为i的元素是否应该排序到下标为j的元素之前
 	Less(i, j int) bool
 	// Swap swaps the elements with indexes i and j.
 	Swap(i, j int)
@@ -213,6 +214,7 @@ func quickSort(data Interface, a, b, maxDepth int) {
 // Sort sorts data.
 // It makes one call to data.Len to determine n, and O(n*log(n)) calls to
 // data.Less and data.Swap. The sort is not guaranteed to be stable.
+// 默认使用快速排序且并不保证稳定性
 func Sort(data Interface) {
 	n := data.Len()
 	quickSort(data, 0, n, maxDepth(n))

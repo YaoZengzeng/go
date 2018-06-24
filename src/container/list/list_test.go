@@ -23,6 +23,7 @@ func checkListPointers(t *testing.T, l *List, es []*Element) {
 
 	// zero length lists must be the zero value or properly initialized (sentinel circle)
 	if len(es) == 0 {
+		// List的root必须指向自身
 		if l.root.next != nil && l.root.next != root || l.root.prev != nil && l.root.prev != root {
 			t.Errorf("l.root.next = %p, l.root.prev = %p; both should both be nil or %p", l.root.next, l.root.prev, root)
 		}
@@ -32,6 +33,7 @@ func checkListPointers(t *testing.T, l *List, es []*Element) {
 
 	// check internal and external prev/next connections
 	for i, e := range es {
+		// 当在0号节点，prev为root，Prev为nil
 		prev := root
 		Prev := (*Element)(nil)
 		if i > 0 {
@@ -45,6 +47,7 @@ func checkListPointers(t *testing.T, l *List, es []*Element) {
 			t.Errorf("elt[%d](%p).Prev() = %p, want %p", i, e, p, Prev)
 		}
 
+		// 当在最后一个节点，next为root，Next为nil
 		next := root
 		Next := (*Element)(nil)
 		if i < len(es)-1 {

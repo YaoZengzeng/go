@@ -20,6 +20,8 @@ func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *IntHeap) Push(x interface{}) {
 	// Push and Pop use pointer receivers because they modify the slice's length,
 	// not just its contents.
+	// Push和Pop使用pointer receivers，因为Push和Pop不仅会修改slice的内容，还会修改
+	// slice的长度
 	*h = append(*h, x.(int))
 }
 
