@@ -97,18 +97,23 @@ var (
 )
 
 // Addr represents a network end point address.
+// Addr代表了一个network end point地址
 //
 // The two methods Network and String conventionally return strings
 // that can be passed as the arguments to Dial, but the exact form
 // and meaning of the strings is up to the implementation.
 type Addr interface {
+	// 网络的名字，tcp, udp等等
 	Network() string // name of the network (for example, "tcp", "udp")
+	// string形式的地址，比如192.0.2.1:25等等
 	String() string  // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 }
 
 // Conn is a generic stream-oriented network connection.
+// Conn是一个通用的面向流的网络连接
 //
 // Multiple goroutines may invoke methods on a Conn simultaneously.
+// 多个goroutines可能同时调用Conn中的方法
 type Conn interface {
 	// Read reads data from the connection.
 	// Read can be made to time out and return an Error with Timeout() == true
@@ -122,6 +127,7 @@ type Conn interface {
 
 	// Close closes the connection.
 	// Any blocked Read or Write operations will be unblocked and return errors.
+	// 关闭连接，所有被阻塞的Read或者Write操作都会被unblocked并且返回错误
 	Close() error
 
 	// LocalAddr returns the local network address.
@@ -140,6 +146,7 @@ type Conn interface {
 	// I/O, not just the immediately following call to Read or
 	// Write. After a deadline has been exceeded, the connection
 	// can be refreshed by setting a deadline in the future.
+	// 当一个deadline已经被超过时，连接可以在之后通过设置deadline被重置
 	//
 	// An idle timeout can be implemented by repeatedly extending
 	// the deadline after successful Read or Write calls.
@@ -360,15 +367,21 @@ var listenerBacklog = maxListenerBacklog()
 // A Listener is a generic network listener for stream-oriented protocols.
 //
 // Multiple goroutines may invoke methods on a Listener simultaneously.
+// Listener是一个通用的面向流协议的network listener
+// 可能会有多个goroutines同时调用Listener中的方法
 type Listener interface {
 	// Accept waits for and returns the next connection to the listener.
+	// Accept等待并且返回下一个connection到listener
 	Accept() (Conn, error)
 
 	// Close closes the listener.
 	// Any blocked Accept operations will be unblocked and return errors.
+	// Close关闭listener
+	// 任何被阻塞的Accept操作都会被unblock并且返回错误
 	Close() error
 
 	// Addr returns the listener's network address.
+	// Addr返回listener的网络地址
 	Addr() Addr
 }
 

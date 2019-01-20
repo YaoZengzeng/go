@@ -19,8 +19,10 @@ func testWaitGroup(t *testing.T, wg1 *WaitGroup, wg2 *WaitGroup) {
 	exited := make(chan bool, n)
 	for i := 0; i != n; i++ {
 		go func() {
+			// 在每个goroutine中都对wg1 Done()一次，并且对wg2 Wait()
 			wg1.Done()
 			wg2.Wait()
+			// goroutine结束，向exited发送true
 			exited <- true
 		}()
 	}
@@ -43,6 +45,7 @@ func TestWaitGroup(t *testing.T) {
 	wg2 := &WaitGroup{}
 
 	// Run the same test a few times to ensure barrier is in a proper state.
+	// 同一个测试运行多次，确保barrier处于合适的状态
 	for i := 0; i != 8; i++ {
 		testWaitGroup(t, wg1, wg2)
 	}
@@ -65,6 +68,7 @@ func TestWaitGroupMisuse(t *testing.T) {
 	wg.Add(1)
 	wg.Done()
 	wg.Done()
+	// 多调用一次Done()就会导致panic
 	t.Fatal("Should panic")
 }
 
@@ -75,6 +79,8 @@ func TestWaitGroupMisuse2(t *testing.T) {
 	}
 	defer func() {
 		err := recover()
+		// 可能的panic的原因为：负的WaitGroup counter，同时调用Add()和Wait()
+		// 以及在之前的Wait()返回前，重用WaitGroup
 		if err != "sync: negative WaitGroup counter" &&
 			err != "sync: WaitGroup misuse: Add called concurrently with Wait" &&
 			err != "sync: WaitGroup is reused before previous Wait has returned" {
@@ -85,10 +91,12 @@ func TestWaitGroupMisuse2(t *testing.T) {
 	done := make(chan interface{}, 2)
 	// The detection is opportunistic, so we want it to panic
 	// at least in one run out of a million.
+	// 检测是机会主义的，所以我们希望在一万次测试中，至少panic一次
 	for i := 0; i < 1e6; i++ {
 		var wg WaitGroup
 		var here uint32
 		wg.Add(1)
+		// 三个goroutine都对here原子加一，并且自旋到它的值变为3
 		go func() {
 			defer func() {
 				done <- recover()

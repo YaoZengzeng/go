@@ -91,10 +91,12 @@ var reqWriteExcludeHeader = map[string]bool{
 
 // A Request represents an HTTP request received by a server
 // or to be sent by a client.
+// Request代表server接收到的或者client将要发送的一个HTTP请求
 //
 // The field semantics differ slightly between client and server
 // usage. In addition to the notes on the fields below, see the
 // documentation for Request.Write and RoundTripper.
+// 对于client和server，各个字段的使用方式不同
 type Request struct {
 	// Method specifies the HTTP method (GET, POST, PUT, etc.).
 	// For client requests an empty string means GET.
@@ -102,6 +104,7 @@ type Request struct {
 	// Go's HTTP client does not support sending a request with
 	// the CONNECT method. See the documentation on Transport for
 	// details.
+	// Go的HTTP client不支持发送一个带有CONNECT方法的请求
 	Method string
 
 	// URL specifies either the URI being requested (for server
@@ -198,6 +201,8 @@ type Request struct {
 	// Close indicates whether to close the connection after
 	// replying to this request (for servers) or after sending this
 	// request and reading its response (for clients).
+	// Close表示是否关闭连接：对于server是回复了这个请求之后，对于clients是发送
+	// 请求并读取回复之后
 	//
 	// For server requests, the HTTP server handles this automatically
 	// and this field is not needed by Handlers.
@@ -205,6 +210,8 @@ type Request struct {
 	// For client requests, setting this field prevents re-use of
 	// TCP connections between requests to the same hosts, as if
 	// Transport.DisableKeepAlives were set.
+	// 对于client requests，设置本字段表示防止对于相同宿主机的访问，重用TCP连接
+	// 因为Transport.DisableKeepAlives被设置了
 	Close bool
 
 	// For server requests Host specifies the host on which the
@@ -241,6 +248,7 @@ type Request struct {
 
 	// Trailer specifies additional headers that are sent after the request
 	// body.
+	// Trailer指定了在request body之后额外的headers
 	//
 	// For server requests the Trailer map initially contains only the
 	// trailer keys, with nil values. (The client declares which trailers it

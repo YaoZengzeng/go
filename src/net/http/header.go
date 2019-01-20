@@ -16,6 +16,7 @@ import (
 var raceEnabled = false // set by race.go
 
 // A Header represents the key-value pairs in an HTTP header.
+// Header代表一个HTTP header中的键值对
 type Header map[string][]string
 
 // Add adds the key, value pair to the header.

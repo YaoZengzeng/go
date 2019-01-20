@@ -81,6 +81,7 @@ func (noopConn) SetDeadline(t time.Time) error      { return nil }
 func (noopConn) SetReadDeadline(t time.Time) error  { return nil }
 func (noopConn) SetWriteDeadline(t time.Time) error { return nil }
 
+// rwTestConn对noopConn进行了封装
 type rwTestConn struct {
 	io.Reader
 	io.Writer
@@ -160,6 +161,7 @@ func TestConsumingBodyOnNextConn(t *testing.T) {
 	defer afterTest(t)
 	conn := new(testConn)
 	for i := 0; i < 2; i++ {
+		// 写入两个请求
 		conn.readBuf.Write([]byte(
 			"POST / HTTP/1.1\r\n" +
 				"Host: test\r\n" +
@@ -173,6 +175,7 @@ func TestConsumingBodyOnNextConn(t *testing.T) {
 	servech := make(chan error)
 	listener := &oneConnListener{conn}
 	handler := func(res ResponseWriter, req *Request) {
+		// handler直接增加请求数并且将Request从ch传递
 		reqNum++
 		ch <- req
 	}
@@ -200,6 +203,7 @@ func TestConsumingBodyOnNextConn(t *testing.T) {
 			req.Method, "POST")
 	}
 
+	// 最后，Serve()返回error且error为io.EOF
 	if serveerr := <-servech; serveerr != io.EOF {
 		t.Errorf("Serve returned %q; expected EOF", serveerr)
 	}

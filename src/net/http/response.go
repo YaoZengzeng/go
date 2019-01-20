@@ -26,6 +26,7 @@ var respExcludeHeader = map[string]bool{
 }
 
 // Response represents the response from an HTTP request.
+// Response代表了一个HTTP请求的response
 //
 // The Client and Transport return Responses from servers once
 // the response headers have been received. The response body
@@ -44,6 +45,7 @@ type Response struct {
 	// Header values are duplicated by other fields in this struct (e.g.,
 	// ContentLength, TransferEncoding, Trailer), the field values are
 	// authoritative.
+	// 如果response中有多个header具有同样的key，它们可能被以逗号作为分隔符连接
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
 	Header Header

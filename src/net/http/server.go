@@ -85,9 +85,11 @@ type Handler interface {
 
 // A ResponseWriter interface is used by an HTTP handler to
 // construct an HTTP response.
+// 接口ResponseWriter被HTTP handler用于构建一个HTTP response
 //
 // A ResponseWriter may not be used after the Handler.ServeHTTP method
 // has returned.
+// ResponseWriter在Handler.ServeHTTP方法返回之后不能再被使用
 type ResponseWriter interface {
 	// Header returns the header map that will be sent by
 	// WriteHeader. The Header map also is the mechanism with which
@@ -234,6 +236,7 @@ var (
 )
 
 // A conn represents the server side of an HTTP connection.
+// 一个conn代表server端的一个HTTP连接
 type conn struct {
 	// server is the server on which the connection arrived.
 	// Immutable; never nil.
@@ -246,6 +249,8 @@ type conn struct {
 	// This is never wrapped by other types and is the value given out
 	// to CloseNotifier callers. It is usually of type *net.TCPConn or
 	// *tls.Conn.
+	// rwc是底层的网络连接
+	// 它永远不会被其他类型封装并且它会被传递给CloseNotifier callers
 	rwc net.Conn
 
 	// remoteAddr is rwc.RemoteAddr().String(). It is not populated synchronously
@@ -287,6 +292,7 @@ type conn struct {
 	// hijackedv is whether this connection has been hijacked
 	// by a Handler with the Hijacker interface.
 	// It is guarded by mu.
+	// hijackedv表明该连接是否被Handler劫持
 	hijackedv bool
 }
 
@@ -607,6 +613,7 @@ func (w *response) ReadFrom(src io.Reader) (n int64, err error) {
 const debugServerConnections = false
 
 // Create new connection from rwc.
+// 从rwc创建新的连接
 func (srv *Server) newConn(rwc net.Conn) *conn {
 	c := &conn{
 		server: srv,
@@ -629,6 +636,7 @@ type readResult struct {
 // read sizes) with support for selectively keeping an io.Reader.Read
 // call blocked in a background goroutine to wait for activity and
 // trigger a CloseNotifier channel.
+// connReader是由*conn使用的io.Reader的wrapper
 type connReader struct {
 	conn *conn
 
@@ -912,6 +920,7 @@ func appendTime(b []byte, t time.Time) []byte {
 var errTooLarge = errors.New("http: request too large")
 
 // Read next request from connection.
+// 从连接中获取下一个request
 func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 	if c.hijacked() {
 		return nil, ErrHijacked
@@ -1732,6 +1741,7 @@ func (c *conn) serve(ctx context.Context) {
 		}
 	}()
 
+	// 如果是tls connection
 	if tlsConn, ok := c.rwc.(*tls.Conn); ok {
 		if d := c.server.ReadTimeout; d != 0 {
 			c.rwc.SetReadDeadline(time.Now().Add(d))
@@ -1765,6 +1775,7 @@ func (c *conn) serve(ctx context.Context) {
 	c.bufw = newBufioWriterSize(checkConnErrorWriter{c}, 4<<10)
 
 	for {
+		// 读取request
 		w, err := c.readRequest(ctx)
 		if c.r.remain != c.server.initialReadLimitSize() {
 			// If we read any bytes off the wire, we're active.
@@ -1823,10 +1834,14 @@ func (c *conn) serve(ctx context.Context) {
 		// HTTP cannot have multiple simultaneous active requests.[*]
 		// Until the server replies to this request, it can't read another,
 		// so we might as well run the handler in this goroutine.
+		// HTTP不能同时有多个active requests，直到server回复这个request
+		// 它不能读取另一个，因此我们也能在这个goroutine中运行handler
 		// [*] Not strictly true: HTTP pipelining. We could let them all process
 		// in parallel even if their responses need to be serialized.
 		// But we're not going to implement HTTP pipelining because it
 		// was never deployed in the wild and the answer is HTTP/2.
+		// 我们并不打算实现HTTP pipelining，因为它从未被广泛部署并且对于这个的问题的
+		// 解决方法是HTTP/2
 		serverHandler{c.server}.ServeHTTP(w, w.req)
 		w.cancelCtx()
 		if c.hijacked() {
@@ -2384,6 +2399,9 @@ func HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 // creating a new service goroutine for each. The service goroutines
 // read requests and then call handler to reply to them.
 // Handler is typically nil, in which case the DefaultServeMux is used.
+// Server接收从listener l中获取的HTTP连接并且为每个连接创建一个新时service goroutine
+// service goroutines读取请求并且调用handler回复
+// Handler一般为nil，在这种情况下会使用DefaultServeMux
 func Serve(l net.Listener, handler Handler) error {
 	srv := &Server{Handler: handler}
 	return srv.Serve(l)
@@ -2451,6 +2469,7 @@ type Server struct {
 	// values, including the request line. It does not limit the
 	// size of the request body.
 	// If zero, DefaultMaxHeaderBytes is used.
+	// DefaultMaxHeaderBytes为1M
 	MaxHeaderBytes int
 
 	// TLSNextProto optionally specifies a function to take over
@@ -2467,6 +2486,8 @@ type Server struct {
 	// ConnState specifies an optional callback function that is
 	// called when a client connection changes state. See the
 	// ConnState type and associated constants for details.
+	// ConnState指定了一个可选的回调函数，当client connection状态发生改变时
+	// 会被调用
 	ConnState func(net.Conn, ConnState)
 
 	// ErrorLog specifies an optional logger for errors accepting
@@ -2627,6 +2648,8 @@ func (s *Server) closeListenersLocked() error {
 
 // A ConnState represents the state of a client connection to a server.
 // It's used by the optional Server.ConnState hook.
+// 一个ConnState代表一个client连接到server的状态
+// 它会被一个可选的Server.ConnState hook使用
 type ConnState int
 
 const (
@@ -2634,6 +2657,7 @@ const (
 	// send a request immediately. Connections begin at this
 	// state and then transition to either StateActive or
 	// StateClosed.
+	// 连接的初始状态，代表一个新的连接并期望立即发出一个请求
 	StateNew ConnState = iota
 
 	// StateActive represents a connection that has read 1 or more
@@ -2653,10 +2677,15 @@ const (
 	// handling a request and is in the keep-alive state, waiting
 	// for a new request. Connections transition from StateIdle
 	// to either StateActive or StateClosed.
+	// StateIdle代表一个连接已经处理完一个请求并且处于keep-alive的状态
+	// 等待一个新的请求，Connections从StateIdle转移到StateActive或者
+	// StateClosed
 	StateIdle
 
 	// StateHijacked represents a hijacked connection.
 	// This is a terminal state. It does not transition to StateClosed.
+	// StateHijacked代表一个被劫持的连接
+	// 这是一个最终状态，它不会转移到StateClosed
 	StateHijacked
 
 	// StateClosed represents a closed connection.
@@ -2679,6 +2708,8 @@ func (c ConnState) String() string {
 
 // serverHandler delegates to either the server's Handler or
 // DefaultServeMux and also handles "OPTIONS *" requests.
+// serverHandler代表server的Handler或者DefaultServeMux，同时也处理
+// "OPTIONS *" 请求
 type serverHandler struct {
 	srv *Server
 }
@@ -2742,11 +2773,14 @@ var ErrServerClosed = errors.New("http: Server closed")
 // Serve accepts incoming connections on the Listener l, creating a
 // new service goroutine for each. The service goroutines read requests and
 // then call srv.Handler to reply to them.
+// Serve接受listener l中进入的connection并为每个创建新的service goroutine
 //
 // For HTTP/2 support, srv.TLSConfig should be initialized to the
 // provided listener's TLS Config before calling Serve. If
 // srv.TLSConfig is non-nil and doesn't include the string "h2" in
 // Config.NextProtos, HTTP/2 support is not enabled.
+// 对于HTTP/2的支持，srv.TLSConfig在调用Serve前应该被初始化为提供的listener的TLS Config
+// 如果srv.TLSConfig为non-nil且Config.NextProtos中不包含"h2"，则HTTP/2不被支持
 //
 // Serve always returns a non-nil error. After Shutdown or Close, the
 // returned error is ErrServerClosed.
@@ -2767,6 +2801,7 @@ func (srv *Server) Serve(l net.Listener) error {
 	baseCtx := context.Background() // base is always background, per Issue 16220
 	ctx := context.WithValue(baseCtx, ServerContextKey, srv)
 	for {
+		// 获取连接
 		rw, e := l.Accept()
 		if e != nil {
 			select {
@@ -2851,6 +2886,7 @@ func (s *Server) trackListener(ln net.Listener, add bool) {
 		if len(s.listeners) == 0 && len(s.activeConn) == 0 {
 			s.doneChan = nil
 		}
+		// 记录当前的listener
 		s.listeners[ln] = struct{}{}
 	} else {
 		delete(s.listeners, ln)
@@ -3208,6 +3244,9 @@ func (tw *timeoutWriter) writeHeader(code int) {
 // connections. It's used by ListenAndServe and ListenAndServeTLS so
 // dead TCP connections (e.g. closing laptop mid-download) eventually
 // go away.
+// tcpKeepAliveListener在接收到的connections上设置TCP keep-alive的超时
+// 它会被ListenAndServe以及ListenAndServeTLS使用，由此dead TCP connections
+// 最终会消失
 type tcpKeepAliveListener struct {
 	*net.TCPListener
 }

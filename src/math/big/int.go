@@ -14,6 +14,7 @@ import (
 )
 
 // An Int represents a signed multi-precision integer.
+// 一个Int表示一个有符号的多精度整数
 // The zero value for an Int represents the value 0.
 type Int struct {
 	neg bool // sign
