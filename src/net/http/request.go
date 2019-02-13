@@ -100,6 +100,7 @@ var reqWriteExcludeHeader = map[string]bool{
 type Request struct {
 	// Method specifies the HTTP method (GET, POST, PUT, etc.).
 	// For client requests an empty string means GET.
+	// 对于客户端，Method为空表示方法为GET
 	//
 	// Go's HTTP client does not support sending a request with
 	// the CONNECT method. See the documentation on Transport for
@@ -119,6 +120,8 @@ type Request struct {
 	// connect to, while the Request's Host field optionally
 	// specifies the Host header value to send in the HTTP
 	// request.
+	// 对于客户端请求，URL的Host指定了要连接的server，同时Request的Host字段
+	// 可选地指定了在HTTP request中的Host header
 	URL *url.URL
 
 	// The protocol version for incoming server requests.
@@ -151,6 +154,8 @@ type Request struct {
 	//
 	// For incoming requests, the Host header is promoted to the
 	// Request.Host field and removed from the Header map.
+	// 对于incoming requests，Host header被提升为Request.Host字段并且从
+	// Header map中移除
 	//
 	// HTTP defines that header names are case-insensitive. The
 	// request parser implements this by using CanonicalHeaderKey,
@@ -168,6 +173,7 @@ type Request struct {
 	// For client requests a nil body means the request has no
 	// body, such as a GET request. The HTTP Client's Transport
 	// is responsible for calling the Close method.
+	// 对于client requests，body为nil意味着请求没有body，例如GET request
 	//
 	// For server requests the Request Body is always non-nil
 	// but will return EOF immediately when no body is present.
@@ -196,6 +202,7 @@ type Request struct {
 	// TransferEncoding can usually be ignored; chunked encoding is
 	// automatically added and removed as necessary when sending and
 	// receiving requests.
+	// TransferEncoding通常可以被忽略
 	TransferEncoding []string
 
 	// Close indicates whether to close the connection after
@@ -451,6 +458,7 @@ func (r *Request) multipartReader() (*multipart.Reader, error) {
 
 // isH2Upgrade reports whether r represents the http2 "client preface"
 // magic string.
+// isH2Upgrade表示是否r代表http2的"client preface" magic string
 func (r *Request) isH2Upgrade() bool {
 	return r.Method == "PRI" && len(r.Header) == 0 && r.URL.Path == "*" && r.Proto == "HTTP/2.0"
 }
@@ -934,6 +942,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 
 	// First line: GET /index.html HTTP/1.0
 	var s string
+	// 读取请求中的第一行
 	if s, err = tp.ReadLine(); err != nil {
 		return nil, err
 	}
@@ -945,6 +954,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	}()
 
 	var ok bool
+	// 从请求中的第一行解析出Method, 请求的URI以及协议
 	req.Method, req.RequestURI, req.Proto, ok = parseRequestLine(s)
 	if !ok {
 		return nil, &badStringError{"malformed HTTP request", s}
@@ -961,16 +971,19 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	// The standard use is to tunnel HTTPS through an HTTP proxy.
 	// It looks like "CONNECT www.google.com:443 HTTP/1.1", and the parameter is
 	// just the authority section of a URL. This information should go in req.URL.Host.
+	// CONNECT的标准使用方式是用HTTP代理HTTPS
 	//
 	// The net/rpc package also uses CONNECT, but there the parameter is a path
 	// that starts with a slash. It can be parsed with the regular URL parser,
 	// and the path will end up in req.URL.Path, where it needs to be in order for
 	// RPC to work.
+	// 在rpc的使用中，rawurl以"/"开头
 	justAuthority := req.Method == "CONNECT" && !strings.HasPrefix(rawurl, "/")
 	if justAuthority {
 		rawurl = "http://" + rawurl
 	}
 
+	// 解析URL
 	if req.URL, err = url.ParseRequestURI(rawurl); err != nil {
 		return nil, err
 	}

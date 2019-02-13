@@ -25,6 +25,7 @@ import (
 )
 
 // Type is the representation of a Go type.
+// Type表示一个Go的类型
 //
 // Not all methods apply to all kinds of types. Restrictions,
 // if any, are noted in the documentation for each method.
@@ -226,6 +227,7 @@ type Type interface {
 type Kind uint
 
 const (
+	// 定义了各种类型
 	Invalid Kind = iota
 	Bool
 	Int
@@ -573,6 +575,7 @@ func newName(n, tag string, exported bool) name {
  */
 
 // Method represents a single method.
+// Method代表单个的方法
 type Method struct {
 	// Name is the method name.
 	// PkgPath is the package path that qualifies a lower case (unexported)
@@ -584,6 +587,7 @@ type Method struct {
 	PkgPath string
 
 	Type  Type  // method type
+	// Func是将receiver作为第一个参数的方法
 	Func  Value // func with receiver as first argument
 	Index int   // index for Type.Method
 }

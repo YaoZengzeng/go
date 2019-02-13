@@ -223,6 +223,7 @@ func ValidHostHeader(h string) bool {
 	// But we're going to be much more lenient for now and just
 	// search for any byte that's not a valid byte in any of those
 	// expressions.
+	// 当前仅仅检测h中的字符是否都为合法字符
 	for i := 0; i < len(h); i++ {
 		if !validHostByte[h[i]] {
 			return false

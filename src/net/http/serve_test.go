@@ -46,6 +46,7 @@ type oneConnListener struct {
 	conn net.Conn
 }
 
+// oneConnListener只能Accept一次
 func (l *oneConnListener) Accept() (c net.Conn, err error) {
 	c = l.conn
 	if c == nil {
@@ -102,6 +103,7 @@ func (c *rwTestConn) Close() error {
 	return nil
 }
 
+// testCon加noopConn实现了net.Conn定义的方法
 type testConn struct {
 	readMu   sync.Mutex // for TestHandlerBodyClose
 	readBuf  bytes.Buffer
@@ -181,6 +183,7 @@ func TestConsumingBodyOnNextConn(t *testing.T) {
 	}
 
 	go func() {
+		// Serve从listener中读取请求，再交由handler进行处理
 		servech <- Serve(listener, HandlerFunc(handler))
 	}()
 

@@ -420,6 +420,7 @@ func suppressedHeaders(status int) []string {
 }
 
 // msg is *Request or *Response.
+// msg是一个*Request或者*Response
 func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	t := &transferReader{RequestMethod: "GET"}
 
@@ -684,8 +685,10 @@ func fixLength(isResponse bool, status int, requestMethod string, header Header,
 // Determine whether to hang up after sending a request and body, or
 // receiving a response and body
 // 'header' is the request headers
+// shouldClose确认在发送一个请求以及body之后是挂起还是接收一个response以及body
 func shouldClose(major, minor int, header Header, removeCloseHeader bool) bool {
 	if major < 1 {
+		// HTTP/1.1之前直接关闭
 		return true
 	}
 
@@ -741,6 +744,8 @@ func fixTrailer(header Header, te []string) (Header, error) {
 // body turns a Reader into a ReadCloser.
 // Close ensures that the body has been fully read
 // and then reads the trailer if necessary.
+// body将一个Reader转换为ReadCloser
+// Close确保body已经被完全读取并且必要的话读取trailer
 type body struct {
 	src          io.Reader
 	hdr          interface{}   // non-nil (Response or Request) value means read trailer

@@ -142,9 +142,12 @@ func (r *Response) Location() (*url.URL, error) {
 }
 
 // ReadResponse reads and returns an HTTP response from r.
+// ReadResponse从r中读取并且返回一个HTTP response
 // The req parameter optionally specifies the Request that corresponds
 // to this Response. If nil, a GET request is assumed.
+// req参数可以指定和Response相关的Request，如果为nil，则假设是一个GET request
 // Clients must call resp.Body.Close when finished reading resp.Body.
+// Clients在读取resp.Body结束之后必须调用resp.Body.Close
 // After that call, clients can inspect resp.Trailer to find key/value
 // pairs included in the response trailer.
 func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {

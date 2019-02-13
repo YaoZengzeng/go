@@ -56,21 +56,28 @@ var (
 )
 
 // A Handler responds to an HTTP request.
+// Handler用于回复一个HTTP请求
 //
 // ServeHTTP should write reply headers and data to the ResponseWriter
 // and then return. Returning signals that the request is finished; it
 // is not valid to use the ResponseWriter or read from the
 // Request.Body after or concurrently with the completion of the
 // ServeHTTP call.
+// ServerHTTP应该写入reply headers以及data到ResponseWriter并且返回
+// 返回意味着请求结束；在ServeHTTP调用结束并行或结束之后，使用ResponseWriter或者
+// 读取Request.Body是非法的
 //
 // Depending on the HTTP client software, HTTP protocol version, and
 // any intermediaries between the client and the Go server, it may not
 // be possible to read from the Request.Body after writing to the
 // ResponseWriter. Cautious handlers should read the Request.Body
 // first, and then reply.
+// 依赖于HTTP客户端，HTTP协议版本以及客户端和server之间的各种中间组件，在写入ResponseWriter
+// 之后，就可能不能再读取Request.Body，谨慎的handlers应该首先读取Request.Body再回复
 //
 // Except for reading the body, handlers should not modify the
 // provided Request.
+// 除了读取body，handlers不应该修改提供的Request
 //
 // If ServeHTTP panics, the server (the caller of ServeHTTP) assumes
 // that the effect of the panic was isolated to the active request.
@@ -79,6 +86,10 @@ var (
 // RST_STREAM, depending on the HTTP protocol. To abort a handler so
 // the client sees an interrupted response but the server doesn't log
 // an error, panic with the value ErrAbortHandler.
+// 如果ServerHTTP panic了，则server（ServeHTTP的调用者）假设panic的影响会被隔离在
+// active request中，它会恢复panic，记录stack trace到server error log中
+// 根据HTTP协议，关闭网络连接或者发送一个HTTP/2 RST_STREAM
+// 如果handler abort，则客户端会看到一个interrupted response并且server不会记录一个error
 type Handler interface {
 	ServeHTTP(ResponseWriter, *Request)
 }
@@ -168,6 +179,7 @@ type Flusher interface {
 
 // The Hijacker interface is implemented by ResponseWriters that allow
 // an HTTP handler to take over the connection.
+// Hijacker由ResponseWriters实现，从而允许一个HTTP handler能接管connection
 //
 // The default ResponseWriter for HTTP/1.x connections supports
 // Hijacker, but HTTP/2 connections intentionally do not.
@@ -177,9 +189,12 @@ type Hijacker interface {
 	// Hijack lets the caller take over the connection.
 	// After a call to Hijack the HTTP server library
 	// will not do anything else with the connection.
+	// Hijack让caller接管connection
+	// 在调用了Hijack之后，HTTP server library就不会对connection做任何事
 	//
 	// It becomes the caller's responsibility to manage
 	// and close the connection.
+	// 只后会变成caller的责任去管理以及关闭connection
 	//
 	// The returned net.Conn may have read or write deadlines
 	// already set, depending on the configuration of the
@@ -188,9 +203,11 @@ type Hijacker interface {
 	//
 	// The returned bufio.Reader may contain unprocessed buffered
 	// data from the client.
+	// 返回的bufio.Reader中可能包含从client获取的未处理的缓存数据
 	//
 	// After a call to Hijack, the original Request.Body must
 	// not be used.
+	// 在调用Hijack之后，原始的Request.Body一定不能再使用
 	Hijack() (net.Conn, *bufio.ReadWriter, error)
 }
 
@@ -226,6 +243,9 @@ var (
 	// handlers with context.WithValue to access the server that
 	// started the handler. The associated value will be of
 	// type *Server.
+	// ServerContextKey是一个context key，它可以利用context.WithValue
+	// 被用在HTTP handlers中用于访问启动该handler的server，相关的value的
+	// 类型为*Server
 	ServerContextKey = &contextKey{"http-server"}
 
 	// LocalAddrContextKey is a context key. It can be used in
@@ -243,6 +263,7 @@ type conn struct {
 	server *Server
 
 	// cancelCtx cancels the connection-level context.
+	// cancelCtx用于处理连接层面的context
 	cancelCtx context.CancelFunc
 
 	// rwc is the underlying network connection.
@@ -270,6 +291,8 @@ type conn struct {
 	// r is bufr's read source. It's a wrapper around rwc that provides
 	// io.LimitedReader-style limiting (while reading request headers)
 	// and functionality to support CloseNotifier. See *connReader docs.
+	// r是bufr的read source，它是rwc的一个封装用于提供io.LimitedReader风格的限制
+	// 以及提供功能用于支持CloseNotifier
 	r *connReader
 
 	// bufr reads from r.
@@ -329,6 +352,7 @@ const bufferBeforeChunkingSize = 2048
 
 // chunkWriter writes to a response's conn buffer, and is the writer
 // wrapped by the response.bufw buffered writer.
+// chunkWriter写入一个response的conn buffer，它是response.bufw的buffered writer的封装
 //
 // chunkWriter also is responsible for finalizing the Header, including
 // conditionally setting the Content-Type and setting a Content-Length
@@ -410,6 +434,7 @@ func (cw *chunkWriter) close() {
 }
 
 // A response represents the server side of an HTTP response.
+// response代表一个服务端的HTTP response
 type response struct {
 	conn             *conn
 	req              *Request // request for this response
@@ -427,6 +452,9 @@ type response struct {
 	// which may be retained and mutated even after WriteHeader.
 	// handlerHeader is copied into cw.header at WriteHeader
 	// time, and privately mutated thereafter.
+	// handlerHeader是那些Handler要访问的Header，它可能在WriteHeader之后
+	// 依旧被保留和修改
+	// handlerHeader会在WriteHeader的时候被拷贝到cwl.header并且在之后内部修改
 	handlerHeader Header
 	calledHeader  bool // handler accessed handlerHeader via Header
 
@@ -818,6 +846,7 @@ func newBufioReader(r io.Reader) *bufio.Reader {
 }
 
 func putBufioReader(br *bufio.Reader) {
+	// 重置bufio.Reader并且放入bufioReaderPool中
 	br.Reset(nil)
 	bufioReaderPool.Put(br)
 }
@@ -937,9 +966,11 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 	if d := c.server.ReadTimeout; d != 0 {
 		wholeReqDeadline = t0.Add(d)
 	}
+	// 设置连接的ReadDeadline
 	c.rwc.SetReadDeadline(hdrDeadline)
 	if d := c.server.WriteTimeout; d != 0 {
 		defer func() {
+			// 读取完请求之后，设置连接的WriteDeadline
 			c.rwc.SetWriteDeadline(time.Now().Add(d))
 		}()
 	}
@@ -950,6 +981,7 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 		peek, _ := c.bufr.Peek(4) // ReadRequest will get err below
 		c.bufr.Discard(numLeadingCRorLF(peek))
 	}
+	// 读取请求
 	req, err := readRequest(c.bufr, keepHostHeader)
 	if err != nil {
 		if c.r.hitReadLimit() {
@@ -976,6 +1008,7 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 	if len(hosts) == 1 && !httplex.ValidHostHeader(hosts[0]) {
 		return nil, badRequestError("malformed Host header")
 	}
+	// 遍历请求的Header并且检测正确性
 	for k, vv := range req.Header {
 		if !httplex.ValidHeaderFieldName(k) {
 			return nil, badRequestError("invalid header name")
@@ -986,6 +1019,7 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 			}
 		}
 	}
+	// 从Header中删除"Host"
 	delete(req.Header, "Host")
 
 	ctx, cancelCtx := context.WithCancel(ctx)
@@ -1001,6 +1035,7 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 		c.rwc.SetReadDeadline(wholeReqDeadline)
 	}
 
+	// 创建response
 	w = &response{
 		conn:          c,
 		cancelCtx:     cancelCtx,
@@ -1026,6 +1061,8 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
 
 // http1ServerSupportsRequest reports whether Go's HTTP/1.x server
 // supports the given request.
+// http1ServerSupportsRequest用于确认是否Go的HTTP/1.x server是否支持
+// 给定的请求
 func http1ServerSupportsRequest(req *Request) bool {
 	if req.ProtoMajor == 1 {
 		return true
@@ -1566,6 +1603,8 @@ func (w *response) finishRequest() {
 
 // shouldReuseConnection reports whether the underlying TCP connection can be reused.
 // It must only be called after the handler is done executing.
+// shouldReuseConnection报告是否重用底层的TCP连接
+// 本函数必须在handler执行之后被调用
 func (w *response) shouldReuseConnection() bool {
 	if w.closeAfterReply {
 		// The request or something set while executing the
@@ -1581,6 +1620,7 @@ func (w *response) shouldReuseConnection() bool {
 
 	// There was some error writing to the underlying connection
 	// during the request, so don't re-use this conn.
+	// 在请求写入底层连接的时候发生了错误，因此不能重用连接
 	if w.conn.werr != nil {
 		return false
 	}
@@ -1609,6 +1649,7 @@ func (c *conn) finalFlush() {
 	if c.bufr != nil {
 		// Steal the bufio.Reader (~4KB worth of memory) and its associated
 		// reader for a future connection.
+		// 将bufio.Reader放入pool中用于以后使用
 		putBufioReader(c.bufr)
 		c.bufr = nil
 	}
@@ -1624,7 +1665,9 @@ func (c *conn) finalFlush() {
 
 // Close the connection.
 func (c *conn) close() {
+	// 清除缓存
 	c.finalFlush()
+	// 关闭连接
 	c.rwc.Close()
 }
 
@@ -1678,6 +1721,7 @@ func (c *conn) setState(nc net.Conn, state ConnState) {
 		srv.trackConn(c, false)
 	}
 	c.curState.Store(connStateInterface[state])
+	// 执行一系列的hook
 	if hook := srv.ConnState; hook != nil {
 		hook(nc, state)
 	}
@@ -1733,6 +1777,7 @@ func (c *conn) serve(ctx context.Context) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
+			// 记录panic
 			c.server.logf("http: panic serving %v: %v\n%s", c.remoteAddr, err, buf)
 		}
 		if !c.hijacked() {
@@ -1765,17 +1810,20 @@ func (c *conn) serve(ctx context.Context) {
 	}
 
 	// HTTP/1.x from here on.
+	// 对于协议HTTP/1.x的处理
 
 	ctx, cancelCtx := context.WithCancel(ctx)
 	c.cancelCtx = cancelCtx
 	defer cancelCtx()
 
 	c.r = &connReader{conn: c}
+	// 从bufioReaderPool中获取bufio.Reader
 	c.bufr = newBufioReader(c.r)
+	// 从bufioWriterPool中获取bufio.Writer
 	c.bufw = newBufioWriterSize(checkConnErrorWriter{c}, 4<<10)
 
 	for {
-		// 读取request
+		// 读取request，返回的事实上是response
 		w, err := c.readRequest(ctx)
 		if c.r.remain != c.server.initialReadLimitSize() {
 			// If we read any bytes off the wire, we're active.
@@ -1804,6 +1852,7 @@ func (c *conn) serve(ctx context.Context) {
 				publicErr = publicErr + ": " + string(v)
 			}
 
+			// 直接在裸连接中写入错误
 			fmt.Fprintf(c.rwc, "HTTP/1.1 "+publicErr+errorHeaders+publicErr)
 			return
 		}
@@ -1842,18 +1891,22 @@ func (c *conn) serve(ctx context.Context) {
 		// was never deployed in the wild and the answer is HTTP/2.
 		// 我们并不打算实现HTTP pipelining，因为它从未被广泛部署并且对于这个的问题的
 		// 解决方法是HTTP/2
+		// 运行ServerHTTP对请求进行处理
 		serverHandler{c.server}.ServeHTTP(w, w.req)
 		w.cancelCtx()
+		// 如果连接被劫持了，则直接返回
 		if c.hijacked() {
 			return
 		}
 		w.finishRequest()
+		// 是否重用底层的连接
 		if !w.shouldReuseConnection() {
 			if w.requestBodyLimitHit || w.closedRequestBodyEarly() {
 				c.closeWriteAndWait()
 			}
 			return
 		}
+		// 重用底层连接，将连接状态设置为StateIdle
 		c.setState(c.rwc, StateIdle)
 		c.curReq.Store((*response)(nil))
 
@@ -1865,6 +1918,7 @@ func (c *conn) serve(ctx context.Context) {
 			return
 		}
 
+		// 根据idle timeout设置连接的ReadDeadline()
 		if d := c.server.idleTimeout(); d != 0 {
 			c.rwc.SetReadDeadline(time.Now().Add(d))
 			if _, err := c.bufr.Peek(4); err != nil {
@@ -1955,6 +2009,8 @@ func requestBodyRemains(rc io.ReadCloser) bool {
 // ordinary functions as HTTP handlers. If f is a function
 // with the appropriate signature, HandlerFunc(f) is a
 // Handler that calls f.
+// HandlerFunc是一个adapter用于允许将一个普通函数作为HTTP handlers
+// 如果f是一个有着合适签名的函数，HandlerFunc()就是一个调用f的Handler
 type HandlerFunc func(ResponseWriter, *Request)
 
 // ServeHTTP calls f(w, r).
@@ -2424,8 +2480,11 @@ func ServeTLS(l net.Listener, handler Handler, certFile, keyFile string) error {
 
 // A Server defines parameters for running an HTTP server.
 // The zero value for Server is a valid configuration.
+// 一个Server定义了运行一个HTTP server所需的参数
+// Server的零值是一个合法的配置
 type Server struct {
 	Addr    string  // TCP address to listen on, ":http" if empty
+	// 调用的handler，如果为nil则默认为http.DefaultServeMux
 	Handler Handler // handler to invoke, http.DefaultServeMux if nil
 
 	// TLSConfig optionally provides a TLS configuration for use
@@ -2462,6 +2521,9 @@ type Server struct {
 	// next request when keep-alives are enabled. If IdleTimeout
 	// is zero, the value of ReadTimeout is used. If both are
 	// zero, ReadHeaderTimeout is used.
+	// IdleTimeout是当使能keep-alives的时候，等待下一个请求的最长时间
+	// 如果IdleTimeout为0，则会使用ReadTimeout的值
+	// 如果两者都为0，则使用ReadHeaderTimeout
 	IdleTimeout time.Duration
 
 	// MaxHeaderBytes controls the maximum number of bytes the
@@ -2502,7 +2564,9 @@ type Server struct {
 	nextProtoErr      error     // result of http2.ConfigureServer if used
 
 	mu         sync.Mutex
+	// listener的map
 	listeners  map[net.Listener]struct{}
+	// connection的map
 	activeConn map[*conn]struct{}
 	doneChan   chan struct{}
 	onShutdown []func()
@@ -2671,6 +2735,13 @@ const (
 	// active requests are complete. That means that ConnState
 	// cannot be used to do per-request work; ConnState only notes
 	// the overall state of the connection.
+	// StateActive代表一个连接已经读取了一个请求的一个或多个字节
+	// 在请求进入handler之前会先执行Server.ConnState的hook并且直到请求被处理
+	// 之后也不会再次执行
+	// 在请求被处理之后，state会转变为StateClosed, StateHijacked或者StateIdle
+	// 对于HTTP/2，当请求第一个active request时，状态变为StateActive，并且只有
+	// 在所有的active requests都完成之后才会改变状态，这意味着ConnState不能用于
+	// 每个请求的处理当中；ConnState只是表明连接的整体状态
 	StateActive
 
 	// StateIdle represents a connection that has finished
@@ -2717,6 +2788,7 @@ type serverHandler struct {
 func (sh serverHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 	handler := sh.srv.Handler
 	if handler == nil {
+		// 如果Server中没有Handler，则默认使用DefaultServeMux
 		handler = DefaultServeMux
 	}
 	if req.RequestURI == "*" && req.Method == "OPTIONS" {
@@ -2784,6 +2856,7 @@ var ErrServerClosed = errors.New("http: Server closed")
 //
 // Serve always returns a non-nil error. After Shutdown or Close, the
 // returned error is ErrServerClosed.
+// Serve总是应该返回一个非nil的error，在Shutdown或者Close之后，返回的error为ErrServerClosed
 func (srv *Server) Serve(l net.Listener) error {
 	defer l.Close()
 	if fn := testHookServerServe; fn != nil {
@@ -2801,10 +2874,11 @@ func (srv *Server) Serve(l net.Listener) error {
 	baseCtx := context.Background() // base is always background, per Issue 16220
 	ctx := context.WithValue(baseCtx, ServerContextKey, srv)
 	for {
-		// 获取连接
+		// 获取裸连接
 		rw, e := l.Accept()
 		if e != nil {
 			select {
+			// 如果Server已经关闭了，则返回ErrServerClosed
 			case <-srv.getDoneChan():
 				return ErrServerClosed
 			default:
@@ -2826,6 +2900,7 @@ func (srv *Server) Serve(l net.Listener) error {
 		}
 		tempDelay = 0
 		c := srv.newConn(rw)
+		// 追踪新的连接并执行hook
 		c.setState(c.rwc, StateNew) // before Serve can return
 		go c.serve(ctx)
 	}
@@ -2883,6 +2958,8 @@ func (s *Server) trackListener(ln net.Listener, add bool) {
 	if add {
 		// If the *Server is being reused after a previous
 		// Close or Shutdown, reset its doneChan:
+		// 如果*Server在Close或者Shutdown之后被重用
+		// 则重置doneChan
 		if len(s.listeners) == 0 && len(s.activeConn) == 0 {
 			s.doneChan = nil
 		}
@@ -3300,6 +3377,7 @@ func (h initNPNRequest) ServeHTTP(rw ResponseWriter, req *Request) {
 }
 
 // loggingConn is used for debugging.
+// loggingConn用于debug
 type loggingConn struct {
 	name string
 	net.Conn

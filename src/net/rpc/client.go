@@ -26,18 +26,25 @@ func (e ServerError) Error() string {
 var ErrShutdown = errors.New("connection is shut down")
 
 // Call represents an active RPC.
+// Call代表了一个活跃的RPC
 type Call struct {
+	// service的名字以及调用的方法
 	ServiceMethod string      // The name of the service and method to call.
+	// 函数的参数
 	Args          interface{} // The argument to the function (*struct).
+	// 函数的返回
 	Reply         interface{} // The reply from the function (*struct).
 	Error         error       // After completion, the error status.
 	Done          chan *Call  // Strobes when call is complete.
 }
 
 // Client represents an RPC Client.
+// Client代表一个RPC Client
 // There may be multiple outstanding Calls associated
 // with a single Client, and a Client may be used by
 // multiple goroutines simultaneously.
+// 可能会有多个outstanding Calls和一个Client相关
+// 一个Client也可能被多个goroutines同时使用
 type Client struct {
 	codec ClientCodec
 
@@ -86,6 +93,7 @@ func (client *Client) send(call *Call) {
 	client.mutex.Unlock()
 
 	// Encode and send the request.
+	// 编码并且发送请求
 	client.request.Seq = seq
 	client.request.ServiceMethod = call.ServiceMethod
 	err := client.codec.WriteRequest(&client.request, call.Args)
@@ -106,12 +114,15 @@ func (client *Client) input() {
 	var response Response
 	for err == nil {
 		response = Response{}
+		// 读取response header
 		err = client.codec.ReadResponseHeader(&response)
 		if err != nil {
+			// 当读取response header发生错误就退出
 			break
 		}
 		seq := response.Seq
 		client.mutex.Lock()
+		// 根据序列号找出对应的pending的Call
 		call := client.pending[seq]
 		delete(client.pending, seq)
 		client.mutex.Unlock()
@@ -138,6 +149,7 @@ func (client *Client) input() {
 			}
 			call.done()
 		default:
+			// 从连接中读取reply
 			err = client.codec.ReadResponseBody(call.Reply)
 			if err != nil {
 				call.Error = errors.New("reading body " + err.Error())
@@ -146,6 +158,7 @@ func (client *Client) input() {
 		}
 	}
 	// Terminate pending calls.
+	// 结束所有的pending calls
 	client.reqMutex.Lock()
 	client.mutex.Lock()
 	client.shutdown = true
@@ -185,6 +198,8 @@ func (call *Call) done() {
 // set of services at the other end of the connection.
 // It adds a buffer to the write side of the connection so
 // the header and payload are sent as a unit.
+// NewClient返回一个新的Client用于处理发往连接另一端的各种services的请求
+// 它为连接的写端增加了一个缓存，这样header和payload就能以一个单元被发送
 func NewClient(conn io.ReadWriteCloser) *Client {
 	encBuf := bufio.NewWriter(conn)
 	client := &gobClientCodec{conn, gob.NewDecoder(conn), gob.NewEncoder(encBuf), encBuf}
@@ -193,6 +208,7 @@ func NewClient(conn io.ReadWriteCloser) *Client {
 
 // NewClientWithCodec is like NewClient but uses the specified
 // codec to encode requests and decode responses.
+// NewClientWithCodec用给定的codec来编码request以及解码responses
 func NewClientWithCodec(codec ClientCodec) *Client {
 	client := &Client{
 		codec:   codec,
@@ -210,9 +226,11 @@ type gobClientCodec struct {
 }
 
 func (c *gobClientCodec) WriteRequest(r *Request, body interface{}) (err error) {
+	// 先编码request
 	if err = c.enc.Encode(r); err != nil {
 		return
 	}
+	// 再编码body
 	if err = c.enc.Encode(body); err != nil {
 		return
 	}
@@ -233,7 +251,9 @@ func (c *gobClientCodec) Close() error {
 
 // DialHTTP connects to an HTTP RPC server at the specified network address
 // listening on the default HTTP RPC path.
+// DialHTTP连接到一个特定网络地址监听在默认HTTP RPC路径的HTTP RPC server
 func DialHTTP(network, address string) (*Client, error) {
+	// DefaultRPCPath为"/_goRPC_"
 	return DialHTTPPath(network, address, DefaultRPCPath)
 }
 
@@ -245,10 +265,12 @@ func DialHTTPPath(network, address, path string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 直接与远端建立http连接
 	io.WriteString(conn, "CONNECT "+path+" HTTP/1.0\n\n")
 
 	// Require successful HTTP response
 	// before switching to RPC protocol.
+	// 在转换到RPC协议之前需要一个成功的HTTP response
 	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})
 	if err == nil && resp.Status == connected {
 		return NewClient(conn), nil
@@ -313,6 +335,7 @@ func (client *Client) Go(serviceMethod string, args interface{}, reply interface
 }
 
 // Call invokes the named function, waits for it to complete, and returns its error status.
+// Call调用named function，等待它完成，并且返回error status
 func (client *Client) Call(serviceMethod string, args interface{}, reply interface{}) error {
 	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
 	return call.Error

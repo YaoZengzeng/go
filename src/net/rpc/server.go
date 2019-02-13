@@ -160,15 +160,21 @@ type methodType struct {
 }
 
 type service struct {
+	// 服务的名称
 	name   string                 // name of service
+	// 服务方法的receiver
 	rcvr   reflect.Value          // receiver of methods for the service
+	// receiver的类型
 	typ    reflect.Type           // type of the receiver
+	// 注册的方法
 	method map[string]*methodType // registered methods
 }
 
 // Request is a header written before every RPC call. It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
+// Request是在每个RPC call之前被写入的header，它仅在内部使用但是写在这里用于帮助debug
+// 比如在分析network traffic的时候
 type Request struct {
 	ServiceMethod string   // format: "Service.Method"
 	Seq           uint64   // sequence number chosen by client
@@ -203,6 +209,7 @@ func NewServer() *Server {
 var DefaultServer = NewServer()
 
 // Is this an exported - upper case - name?
+// 是否是一个对外暴露的 - 即大写的 - 名字
 func isExported(name string) bool {
 	rune, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(rune)
@@ -215,6 +222,8 @@ func isExportedOrBuiltinType(t reflect.Type) bool {
 	}
 	// PkgPath will be non-empty even for an exported type,
 	// so we need to check the type name as well.
+	// 对于一个对外暴露的类型，PkgPath非空
+	// 同时我们还需要检查类型名
 	return isExported(t.Name()) || t.PkgPath() == ""
 }
 
@@ -239,6 +248,7 @@ func (server *Server) RegisterName(name string, rcvr interface{}) error {
 }
 
 func (server *Server) register(rcvr interface{}, name string, useName bool) error {
+	// 新建一个service
 	s := new(service)
 	s.typ = reflect.TypeOf(rcvr)
 	s.rcvr = reflect.ValueOf(rcvr)
@@ -259,6 +269,7 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) erro
 	s.name = sname
 
 	// Install the methods
+	// 安装方法
 	s.method = suitableMethods(s.typ, true)
 
 	if len(s.method) == 0 {
@@ -283,17 +294,22 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) erro
 
 // suitableMethods returns suitable Rpc methods of typ, it will report
 // error using log if reportErr is true.
+// suitableMethods返回typ的合适的Rpc方法，如果reportErr为true，它会报错
 func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
 	methods := make(map[string]*methodType)
+	// 获取类型的方法数目
 	for m := 0; m < typ.NumMethod(); m++ {
+		// 根据索引获取相应的方法
 		method := typ.Method(m)
 		mtype := method.Type
 		mname := method.Name
 		// Method must be exported.
+		// 方法必须是对外暴露的
 		if method.PkgPath != "" {
 			continue
 		}
 		// Method needs three ins: receiver, *args, *reply.
+		// Method需要由三个输入参数：receiver, *args以及*reply
 		if mtype.NumIn() != 3 {
 			if reportErr {
 				log.Printf("rpc.Register: method %q has %d input parameters; needs exactly three\n", mname, mtype.NumIn())
@@ -301,6 +317,7 @@ func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
 			continue
 		}
 		// First arg need not be a pointer.
+		// 第一个参数不一定要是指针
 		argType := mtype.In(1)
 		if !isExportedOrBuiltinType(argType) {
 			if reportErr {
@@ -331,12 +348,14 @@ func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
 			continue
 		}
 		// The return type of the method must be error.
+		// 方法返回的类型必须为error
 		if returnType := mtype.Out(0); returnType != typeOfError {
 			if reportErr {
 				log.Printf("rpc.Register: return type of method %q is %q, must be error\n", mname, returnType)
 			}
 			continue
 		}
+		// 注册到methods中
 		methods[mname] = &methodType{method: method, ArgType: argType, ReplyType: replyType}
 	}
 	return methods
@@ -381,6 +400,7 @@ func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, 
 	mtype.Unlock()
 	function := mtype.method.Func
 	// Invoke the method, providing a new value for the reply.
+	// 调用方法，提供一个新的value用于回复
 	returnValues := function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	// The return value for the method is an error.
 	errInter := returnValues[0].Interface()
@@ -388,7 +408,9 @@ func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, 
 	if errInter != nil {
 		errmsg = errInter.(error).Error()
 	}
+	// 发动response
 	server.sendResponse(sending, req, replyv.Interface(), codec, errmsg)
+	// 将req放入freelist用于重复使用
 	server.freeRequest(req)
 }
 
@@ -440,15 +462,22 @@ func (c *gobServerCodec) Close() error {
 }
 
 // ServeConn runs the server on a single connection.
+// ServeConn在单个connection之上运行server
 // ServeConn blocks, serving the connection until the client hangs up.
+// ServeConn阻塞，服务连接直到client挂起
 // The caller typically invokes ServeConn in a go statement.
+// caller一般在一个go statement中调用ServeConn
 // ServeConn uses the gob wire format (see package gob) on the
 // connection. To use an alternate codec, use ServeCodec.
+// ServeConn在连接中使用gob wire format
+// 为了使用其他codec，使用ServeCodec
 func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 	buf := bufio.NewWriter(conn)
 	srv := &gobServerCodec{
 		rwc:    conn,
+		// 从conn中解码
 		dec:    gob.NewDecoder(conn),
+		// 将编码的内容写入缓存中
 		enc:    gob.NewEncoder(buf),
 		encBuf: buf,
 	}
@@ -457,6 +486,7 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 
 // ServeCodec is like ServeConn but uses the specified codec to
 // decode requests and encode responses.
+// ServerCodec和ServeConn类似，但是它使用特定的codec来解码requests以及编码responses
 func (server *Server) ServeCodec(codec ServerCodec) {
 	sending := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
@@ -470,6 +500,7 @@ func (server *Server) ServeCodec(codec ServerCodec) {
 				break
 			}
 			// send a response if we actually managed to read a header.
+			// 如果我们真的设法读到了一个header，则发送一个response
 			if req != nil {
 				server.sendResponse(sending, req, invalidRequest, codec, err.Error())
 				server.freeRequest(req)
@@ -481,6 +512,7 @@ func (server *Server) ServeCodec(codec ServerCodec) {
 	}
 	// We've seen that there are no more requests.
 	// Wait for responses to be sent before closing codec.
+	// 没有更多的requests了，在关闭codec之前等待responses发送完成
 	wg.Wait()
 	codec.Close()
 }
@@ -512,6 +544,7 @@ func (server *Server) getRequest() *Request {
 		req = new(Request)
 	} else {
 		server.freeReq = req.next
+		// 将获取到的Request{}置为空
 		*req = Request{}
 	}
 	server.reqLock.Unlock()
@@ -565,6 +598,7 @@ func (server *Server) readRequest(codec ServerCodec) (service *service, mtype *m
 		argIsValue = true
 	}
 	// argv guaranteed to be a pointer now.
+	// 从请求中读取参数
 	if err = codec.ReadRequestBody(argv.Interface()); err != nil {
 		return
 	}
@@ -586,6 +620,7 @@ func (server *Server) readRequest(codec ServerCodec) (service *service, mtype *m
 func (server *Server) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, err error) {
 	// Grab the request header.
 	req = server.getRequest()
+	// 从请求中读取request
 	err = codec.ReadRequestHeader(req)
 	if err != nil {
 		req = nil
@@ -598,6 +633,8 @@ func (server *Server) readRequestHeader(codec ServerCodec) (svc *service, mtype 
 
 	// We read the header successfully. If we see an error now,
 	// we can still recover and move on to the next request.
+	// 我们成功读取了header，如果我们现在看到一个error
+	// 我们还可以recover并且接着处理下一个请求
 	keepReading = true
 
 	dot := strings.LastIndex(req.ServiceMethod, ".")
@@ -609,11 +646,13 @@ func (server *Server) readRequestHeader(codec ServerCodec) (svc *service, mtype 
 	methodName := req.ServiceMethod[dot+1:]
 
 	// Look up the request.
+	// 根据serviceName找到相应的service
 	svci, ok := server.serviceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc: can't find service " + req.ServiceMethod)
 		return
 	}
+	// 再根据方法名找到对应的方法
 	svc = svci.(*service)
 	mtype = svc.method[methodName]
 	if mtype == nil {
@@ -648,15 +687,20 @@ func RegisterName(name string, rcvr interface{}) error {
 
 // A ServerCodec implements reading of RPC requests and writing of
 // RPC responses for the server side of an RPC session.
+// 一个ServerCodec实现了一个RPC session的server端读取RPC请求以及写RPC responses
 // The server calls ReadRequestHeader and ReadRequestBody in pairs
 // to read requests from the connection, and it calls WriteResponse to
 // write a response back. The server calls Close when finished with the
 // connection. ReadRequestBody may be called with a nil
 // argument to force the body of the request to be read and discarded.
+// server一起连续调用ReadRequestHeader以及ReadRequestBody用于从连接中读取请求
+// 并且调用WriteResponse写回一个response，当结束连接时，server调用Close
+// ReadRequestBody可能以一个nil参数作为调用，从而强制读取并且丢弃body of request
 type ServerCodec interface {
 	ReadRequestHeader(*Request) error
 	ReadRequestBody(interface{}) error
 	// WriteResponse must be safe for concurrent use by multiple goroutines.
+	// WriteResponse在被多个goroutines使用的时候必须是安全的
 	WriteResponse(*Response, interface{}) error
 
 	Close() error
@@ -692,6 +736,7 @@ func Accept(lis net.Listener) { DefaultServer.Accept(lis) }
 var connected = "200 Connected to Go RPC"
 
 // ServeHTTP implements an http.Handler that answers RPC requests.
+// ServeHTTP实现了一个http.Handler用于回复RPC requests
 func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "CONNECT" {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -719,6 +764,9 @@ func (server *Server) HandleHTTP(rpcPath, debugPath string) {
 // HandleHTTP registers an HTTP handler for RPC messages to DefaultServer
 // on DefaultRPCPath and a debugging handler on DefaultDebugPath.
 // It is still necessary to invoke http.Serve(), typically in a go statement.
+// HandleHTTP将RPC messages的HTTP handler注册到DefaultServer中的DefaultRPCPath
+// 以及一个debugging handler到DefaultDebugPath
+// 仍然需要调用http.Serve()，一般在一个go statement中
 func HandleHTTP() {
 	DefaultServer.HandleHTTP(DefaultRPCPath, DefaultDebugPath)
 }
