@@ -157,6 +157,7 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 	}
 
 	// Parse the first line of the response.
+	// 读取response的第一行
 	line, err := tp.ReadLine()
 	if err != nil {
 		if err == io.EOF {

@@ -253,6 +253,7 @@ type ByteScanner interface {
 }
 
 // ByteWriter is the interface that wraps the WriteByte method.
+// ByteWriter封装WriteByte方法
 type ByteWriter interface {
 	WriteByte(c byte) error
 }
@@ -432,6 +433,8 @@ func copyBuffer(dst Writer, src Reader, buf []byte) (written int64, err error) {
 // LimitReader returns a Reader that reads from r
 // but stops with EOF after n bytes.
 // The underlying implementation is a *LimitedReader.
+// LimitReader返回一个从r中读取的Reader，但是在读取n个字节之后返回EOF
+// 底层的实现是一个*LimitedReader
 func LimitReader(r Reader, n int64) Reader { return &LimitedReader{r, n} }
 
 // A LimitedReader reads from R but limits the amount of

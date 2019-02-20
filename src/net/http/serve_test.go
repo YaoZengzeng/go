@@ -187,6 +187,7 @@ func TestConsumingBodyOnNextConn(t *testing.T) {
 		servech <- Serve(listener, HandlerFunc(handler))
 	}()
 
+	// 获取两个Request
 	var req *Request
 	req = <-ch
 	if req == nil {
@@ -239,21 +240,25 @@ var vtests = []struct {
 	{"http://otherHost.com/someDir/apage", "someDir"},
 	{"http://otherHost.com/aDir/apage", "Default"},
 	// redirections for trees
+	// 被重定向
 	{"http://localhost/someDir", "/someDir/"},
 	{"http://localhost/%23", "/%23/"},
 	{"http://someHost.com/someDir", "/someDir/"},
 }
 
+// 测试路由的匹配规则
 func TestHostHandlers(t *testing.T) {
 	setParallel(t)
 	defer afterTest(t)
 	mux := NewServeMux()
 	for _, h := range handlers {
+		// stringHandler仅仅将h.msg写入response的Header
 		mux.Handle(h.pattern, stringHandler(h.msg))
 	}
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
+	// 建立到test server的连接
 	conn, err := net.Dial("tcp", ts.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -263,14 +268,17 @@ func TestHostHandlers(t *testing.T) {
 	for _, vt := range vtests {
 		var r *Response
 		var req Request
+		// Request中仅仅指定了URL
 		if req.URL, err = url.Parse(vt.url); err != nil {
 			t.Errorf("cannot parse url: %v", err)
 			continue
 		}
+		// 写入request
 		if err := cc.Write(&req); err != nil {
 			t.Errorf("writing request: %v", err)
 			continue
 		}
+		// 读取response
 		r, err := cc.Read(&req)
 		if err != nil {
 			t.Errorf("reading response: %v", err)
@@ -283,6 +291,7 @@ func TestHostHandlers(t *testing.T) {
 				t.Errorf("Get(%q) = %q, want %q", vt.url, s, vt.expected)
 			}
 		case StatusMovedPermanently:
+			// 对于重定向，结果写入Location这个Header
 			s := r.Header.Get("Location")
 			if s != vt.expected {
 				t.Errorf("Get(%q) = %q, want %q", vt.url, s, vt.expected)
@@ -305,6 +314,7 @@ var serveMuxRegister = []struct {
 }
 
 // serve returns a handler that sends a response with the given code.
+// serve返回一个handler，发送给定code的response
 func serve(code int) HandlerFunc {
 	return func(w ResponseWriter, r *Request) {
 		w.WriteHeader(code)
@@ -377,6 +387,7 @@ func TestServeMuxHandler(t *testing.T) {
 				Path: tt.path,
 			},
 		}
+		// 从mux中获取Request对应的Handler
 		h, pattern := mux.Handler(r)
 		rr := httptest.NewRecorder()
 		h.ServeHTTP(rr, r)
@@ -633,6 +644,7 @@ func TestServerTimeouts(t *testing.T) {
 	setParallel(t)
 	defer afterTest(t)
 	// Try three times, with increasing timeouts.
+	// 尝试三种超时
 	tries := []time.Duration{250 * time.Millisecond, 500 * time.Millisecond, 1 * time.Second}
 	for i, timeout := range tries {
 		err := testServerTimeouts(timeout)
@@ -653,12 +665,14 @@ func testServerTimeouts(timeout time.Duration) error {
 		reqNum++
 		fmt.Fprintf(res, "req=%d", reqNum)
 	}))
+	// 设置ReadTimeout和WriteTimeout
 	ts.Config.ReadTimeout = timeout
 	ts.Config.WriteTimeout = timeout
 	ts.Start()
 	defer ts.Close()
 
 	// Hit the HTTP server successfully.
+	// 获取ts自带的Client
 	c := ts.Client()
 	r, err := c.Get(ts.URL)
 	if err != nil {
@@ -692,6 +706,7 @@ func testServerTimeouts(timeout time.Duration) error {
 	// Hit the HTTP server successfully again, verifying that the
 	// previous slow connection didn't run our handler.  (that we
 	// get "req=2", not "req=3")
+	// 再一次成功访问HTTP server，确认之前的slow connection没有运行我们的handler
 	r, err = c.Get(ts.URL)
 	if err != nil {
 		return fmt.Errorf("http Get #2: %v", err)
@@ -891,6 +906,7 @@ func testHTTP2NoWriteDeadline(timeout time.Duration) error {
 // golang.org/issue/4741 -- setting only a write timeout that triggers
 // shouldn't cause a handler to block forever on reads (next HTTP
 // request) that will never happen.
+// 只设置write timeout触发不应该让一个handler用于阻塞在读取下一个永远不会到来的请求
 func TestOnlyWriteTimeout(t *testing.T) {
 	setParallel(t)
 	defer afterTest(t)
@@ -947,6 +963,7 @@ func TestOnlyWriteTimeout(t *testing.T) {
 }
 
 // trackLastConnListener tracks the last net.Conn that was accepted.
+// trackLastConnListener追踪最后一个被accepted的net.Conn
 type trackLastConnListener struct {
 	net.Listener
 
@@ -1115,6 +1132,7 @@ func testTCPConnectionStaysOpen(t *testing.T, req string, handler Handler) {
 }
 
 // TestServeHTTP10Close verifies that HTTP/1.0 requests won't be kept alive.
+// TestServeHTTP10Close确认HTTP/1.0的请求不会keep alive
 func TestServeHTTP10Close(t *testing.T) {
 	testTCPConnectionCloses(t, "GET / HTTP/1.0\r\n\r\n", HandlerFunc(func(w ResponseWriter, r *Request) {
 		ServeFile(w, r, "testdata/file")
@@ -1122,6 +1140,7 @@ func TestServeHTTP10Close(t *testing.T) {
 }
 
 // TestClientCanClose verifies that clients can also force a connection to close.
+// TestClientCanClose用于确认，client也能强行关闭连接
 func TestClientCanClose(t *testing.T) {
 	testTCPConnectionCloses(t, "GET / HTTP/1.1\r\nHost: foo\r\nConnection: close\r\n\r\n", HandlerFunc(func(w ResponseWriter, r *Request) {
 		// Nothing.
@@ -1130,12 +1149,14 @@ func TestClientCanClose(t *testing.T) {
 
 // TestHandlersCanSetConnectionClose verifies that handlers can force a connection to close,
 // even for HTTP/1.1 requests.
+// TestHandlersCanSetConnectionClose用于确认handler可以强行关闭一个连接，即使是HTTP/1.1请求
 func TestHandlersCanSetConnectionClose11(t *testing.T) {
 	testTCPConnectionCloses(t, "GET / HTTP/1.1\r\nHost: foo\r\n\r\n\r\n", HandlerFunc(func(w ResponseWriter, r *Request) {
 		w.Header().Set("Connection", "close")
 	}))
 }
 
+// HTTP 1.0可以通过Connection: keep-alive设置持久连接，并且handler可以通过在response设置header关闭
 func TestHandlersCanSetConnectionClose10(t *testing.T) {
 	testTCPConnectionCloses(t, "GET / HTTP/1.0\r\nConnection: keep-alive\r\n\r\n", HandlerFunc(func(w ResponseWriter, r *Request) {
 		w.Header().Set("Connection", "close")
@@ -1153,6 +1174,7 @@ func send204(w ResponseWriter, r *Request) { w.WriteHeader(204) }
 func send304(w ResponseWriter, r *Request) { w.WriteHeader(304) }
 
 // Issue 15647: 204 responses can't have bodies, so HTTP/1.0 keep-alive conns should stay open.
+// 204的responses不能有body，因此HTTP/1.0点keep-alive连接需要保持open
 func TestHTTP10KeepAlive204Response(t *testing.T) {
 	testTCPConnectionStaysOpen(t, "GET / HTTP/1.0\r\nConnection: keep-alive\r\n\r\n", HandlerFunc(send204))
 }
@@ -2984,6 +3006,7 @@ func TestServerBufferedChunking(t *testing.T) {
 	conn.closec = make(chan bool, 1)
 	ls := &oneConnListener{conn}
 	go Serve(ls, HandlerFunc(func(rw ResponseWriter, req *Request) {
+		// 强制发送Header，以chunking mode，不计算长度
 		rw.(Flusher).Flush() // force the Header to be sent, in chunking mode, not counting the length
 		rw.Write([]byte{'x'})
 		rw.Write([]byte{'y'})
@@ -3068,6 +3091,8 @@ func testCaseSensitiveMethod(t *testing.T, h2 bool) {
 // request (both keep-alive), when a Handler never writes any
 // response, the net/http package adds a "Content-Length: 0" response
 // header.
+// TestContentLengthZero对于HTTP/1.0和HTTP/1.1点请求（都是keep-alive）
+// 当Handler不写任何response，则net/http宝辉写入一个"Content-Length: 0"作为response header
 func TestContentLengthZero(t *testing.T) {
 	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {}))
 	defer ts.Close()
@@ -3212,6 +3237,7 @@ func TestCloseNotifierChanLeak(t *testing.T) {
 
 // Tests that we can use CloseNotifier in one request, and later call Hijack
 // on a second request on the same connection.
+// 测试我们可以在一个请求中使用CloseNotifier，并且在同一个连接的第二个请求中调用Hijack
 //
 // It also tests that the connReader stitches together its background
 // 1-byte read for CloseNotifier when CloseNotifier doesn't fire with
@@ -3234,6 +3260,7 @@ func TestHijackAfterCloseNotifier(t *testing.T) {
 			w.(CloseNotifier).CloseNotify() // discard result
 			w.Header().Set("X-Addr", r.RemoteAddr)
 		case "hijack":
+			// 进行hijack
 			c, _, err := w.(Hijacker).Hijack()
 			if err != nil {
 				t.Errorf("Hijack in Handler: %v", err)
@@ -3244,7 +3271,9 @@ func TestHijackAfterCloseNotifier(t *testing.T) {
 				// Not strictly a go1 compat issue, but in practice it probably is.
 				t.Errorf("type of hijacked conn is %T; want *net.TCPConn", c)
 			}
+			// 直接写入裸连接
 			fmt.Fprintf(c, "HTTP/1.0 200 OK\r\nX-Addr: %v\r\nContent-Length: 0\r\n\r\n", r.RemoteAddr)
+			// 关闭连接
 			c.Close()
 			return
 		}
@@ -3275,6 +3304,7 @@ func TestHijackBeforeRequestBodyRead(t *testing.T) {
 		defer close(bodyOkay) // caller will read false if nothing else
 
 		reqBody := r.Body
+		// server.go并不适用r.Body
 		r.Body = nil // to test that server.go doesn't use this value.
 
 		gone := w.(CloseNotifier).CloseNotify()
@@ -3307,6 +3337,7 @@ func TestHijackBeforeRequestBodyRead(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// POST方法，带有body
 	fmt.Fprintf(conn, "POST / HTTP/1.1\r\nHost: foo\r\nContent-Length: %d\r\n\r\n%s",
 		len(requestBody), requestBody)
 	if !<-bodyOkay {
@@ -4370,6 +4401,7 @@ func TestServerKeepAliveAfterWriteError(t *testing.T) {
 
 // Issue 9987: shouldn't add automatic Content-Length (or
 // Content-Type) if a Transfer-Encoding was set by the handler.
+// 如果handler设置了Transfer-Encoding，则不应该自动添加Content-Length或者Content-Type
 func TestNoContentLengthIfTransferEncoding(t *testing.T) {
 	defer afterTest(t)
 	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -5623,9 +5655,11 @@ func TestServerDuplicateBackgroundRead(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				// 丢弃请求
 				io.Copy(ioutil.Discard, cn)
 			}()
 
+			// 发送2000个请求
 			for j := 0; j < requests; j++ {
 				if t.Failed() {
 					return
@@ -5646,6 +5680,8 @@ func TestServerDuplicateBackgroundRead(t *testing.T) {
 // Handler code to be able to tell that a byte is available via
 // bufio.Reader.Buffered(), without resorting to Reading it
 // (potentially blocking) to get at it.
+// 测试Hijack返回的bufio.Reader在缓存中包含任意缓存的字节，我们想要Handler
+// 能够通过bufio.Reader.Buffered()来说明一个字节是否可以访问
 func TestServerHijackGetsBackgroundByte(t *testing.T) {
 	if runtime.GOOS == "plan9" {
 		t.Skip("skipping test; see https://golang.org/issue/18657")
@@ -5658,12 +5694,15 @@ func TestServerHijackGetsBackgroundByte(t *testing.T) {
 		defer close(done)
 
 		// Tell the client to send more data after the GET request.
+		// 告诉client在GET请求之后发送更多的数据
 		inHandler <- true
 
 		// Wait until the HTTP server sees the extra data
 		// after the GET request. The HTTP server fires the
 		// close notifier here, assuming it's a pipelined
 		// request, as documented.
+		// 等待直到HTTP server在GET请求之后看到额外的数据
+		// HTTP Server在这里启动close notifier，假设这是一个pipelined请求
 		select {
 		case <-w.(CloseNotifier).CloseNotify():
 		case <-time.After(5 * time.Second):
@@ -5697,6 +5736,7 @@ func TestServerHijackGetsBackgroundByte(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-inHandler
+	// 写入三个字节并且关闭
 	if _, err := cn.Write([]byte("foo")); err != nil {
 		t.Fatal(err)
 	}
@@ -5729,6 +5769,7 @@ func TestServerHijackGetsBackgroundByte_big(t *testing.T) {
 		// after the GET request. The HTTP server fires the
 		// close notifier here, assuming it's a pipelined
 		// request, as documented.
+		// 等待直到HTTP server看到了GET请求之后所有额外的数据
 		select {
 		case <-w.(CloseNotifier).CloseNotify():
 		case <-time.After(5 * time.Second):

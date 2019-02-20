@@ -26,14 +26,19 @@ import (
 
 // A Client is an HTTP client. Its zero value (DefaultClient) is a
 // usable client that uses DefaultTransport.
+// Client是一个HTTP客户端，它的零值（DefaultClient）是一个可用的client，使用DefaultTransport
 //
 // The Client's Transport typically has internal state (cached TCP
 // connections), so Clients should be reused instead of created as
 // needed. Clients are safe for concurrent use by multiple goroutines.
+// Client的Transport默认有内部状态（缓存的TCP connections），因此Clients应该
+// 被重用而不是按需创建，Clients可以安全地被多个goroutines并发使用
 //
 // A Client is higher-level than a RoundTripper (such as Transport)
 // and additionally handles HTTP details such as cookies and
 // redirects.
+// Client比RoundTripper（例如Transport）具有更高的层次并且会额外处理HTTP的细节例如
+// cookies和redirects
 //
 // When following redirects, the Client will forward all headers set on the
 // initial Request except:
@@ -57,6 +62,8 @@ type Client struct {
 	// Transport specifies the mechanism by which individual
 	// HTTP requests are made.
 	// If nil, DefaultTransport is used.
+	// Transport表明单个HTTP请求的机制
+	// 如果为nil，默认使用DefaultTransport
 	Transport RoundTripper
 
 	// CheckRedirect specifies the policy for handling redirects.
@@ -93,6 +100,7 @@ type Client struct {
 	// interrupt reading of the Response.Body.
 	//
 	// A Timeout of zero means no timeout.
+	// Timeout为0，意味着没有timeout
 	//
 	// The Client cancels requests to the underlying Transport
 	// using the Request.Cancel mechanism. Requests passed
@@ -111,12 +119,15 @@ var DefaultClient = &Client{}
 
 // RoundTripper is an interface representing the ability to execute a
 // single HTTP transaction, obtaining the Response for a given Request.
+// RoundTripper是一个接口，代表执行单个HTTP transaction，获取给定Request的Response的能力
 //
 // A RoundTripper must be safe for concurrent use by multiple
 // goroutines.
+// 一个RoundTripper必须是线程安全的
 type RoundTripper interface {
 	// RoundTrip executes a single HTTP transaction, returning
 	// a Response for the provided Request.
+	// RoundTrip执行单个的HTTP事务，返回给定Request的Response
 	//
 	// RoundTrip should not attempt to interpret the response. In
 	// particular, RoundTrip must return err == nil if it obtained
@@ -125,20 +136,32 @@ type RoundTripper interface {
 	// response. Similarly, RoundTrip should not attempt to
 	// handle higher-level protocol details such as redirects,
 	// authentication, or cookies.
+	// RoundTrip不应该试着去解析response，特别的，RoundTrip必须返回err == nil
+	// 如果它获取到了一个response，不管response的HTTP status code是什么
+	// 只有在获取response失败的时候才返回一个非nil的err
+	// 同样的，RoundTrip不应该试着去处理更高层面的协议细节，例如redirects，authentication
+	// 或者cookies
 	//
 	// RoundTrip should not modify the request, except for
 	// consuming and closing the Request's Body. RoundTrip may
 	// read fields of the request in a separate goroutine. Callers
 	// should not mutate the request until the Response's Body has
 	// been closed.
+	// RoundTrip不应该修改request，除了消耗以及关闭Request的Body
+	// RoundTrip可能在不同的goroutine中读取request的字段
+	// 调用者不应该修改request直到Response的Body已经被关闭了
 	//
 	// RoundTrip must always close the body, including on errors,
 	// but depending on the implementation may do so in a separate
 	// goroutine even after RoundTrip returns. This means that
 	// callers wanting to reuse the body for subsequent requests
 	// must arrange to wait for the Close call before doing so.
+	// RoundTrip必须关闭body，包括有errors的情况，但是根据实现，可能在不同的
+	// goroutine进行处理，甚至在RoundTrip返回之后，这意味着希望重用body用于
+	// 之后的requests的调用者必须等到Close调用之后才能做
 	//
 	// The Request's URL and Header fields must be initialized.
+	// Request的URL和Header字段必须都已经初始化
 	RoundTrip(*Request) (*Response, error)
 }
 
@@ -179,6 +202,7 @@ func (c *Client) send(req *Request, deadline time.Time) (resp *Response, didTime
 	}
 	if c.Jar != nil {
 		if rc := resp.Cookies(); len(rc) > 0 {
+			// 根据response设置cookie
 			c.Jar.SetCookies(req.URL, rc)
 		}
 	}
@@ -201,6 +225,7 @@ func (c *Client) transport() RoundTripper {
 
 // send issues an HTTP request.
 // Caller should close resp.Body when done reading from it.
+// send发送一个HTTP请求，调用者应该关闭resp.Body当已经读取完之后
 func send(ireq *Request, rt RoundTripper, deadline time.Time) (resp *Response, didTimeout func() bool, err error) {
 	req := ireq // req is either the original request, or a modified fork
 
@@ -249,6 +274,7 @@ func send(ireq *Request, rt RoundTripper, deadline time.Time) (resp *Response, d
 	}
 	stopTimer, didTimeout := setRequestCancel(req, rt, deadline)
 
+	// 调用RoundTrip发送请求
 	resp, err = rt.RoundTrip(req)
 	if err != nil {
 		stopTimer()
@@ -373,6 +399,8 @@ func Get(url string) (resp *Response, err error) {
 // Get issues a GET to the specified URL. If the response is one of the
 // following redirect codes, Get follows the redirect after calling the
 // Client's CheckRedirect function:
+// Get向给定的URL发送一个GET，如果返回的response包含以下几种redirect code，Get
+// 在调用Client的CheckRedirect函数之后进行redirect
 //
 //    301 (Moved Permanently)
 //    302 (Found)
@@ -386,8 +414,10 @@ func Get(url string) (resp *Response, err error) {
 //
 // When err is nil, resp always contains a non-nil resp.Body.
 // Caller should close resp.Body when done reading from it.
+// 调用者在读取完resp.Body之后必须将其关闭
 //
 // To make a request with custom headers, use NewRequest and Client.Do.
+// 创建自定义headers的请求，使用NewRequest和Client.Do
 func (c *Client) Get(url string) (resp *Response, err error) {
 	req, err := NewRequest("GET", url, nil)
 	if err != nil {
@@ -460,6 +490,8 @@ func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirect
 // Do sends an HTTP request and returns an HTTP response, following
 // policy (such as redirects, cookies, auth) as configured on the
 // client.
+// Do发送一个HTTP request并且返回一个HTTP response，并根据Client中的配置
+// 执行相应的policy（例如redirects, cookies以及auth）
 //
 // An error is returned if caused by client policy (such as
 // CheckRedirect), or failure to speak HTTP (such as a network
@@ -471,9 +503,13 @@ func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirect
 // closed, the Client's underlying RoundTripper (typically Transport)
 // may not be able to re-use a persistent TCP connection to the server
 // for a subsequent "keep-alive" request.
+// 如果返回的error为nil，则Response会包含一个非nil的Body，用户会期望关闭
+// 如果Body没有关闭，则Client底层的RoundTripper（一般为Transport）就不能重用到server
+// 的persistent TCP连接，用于之后的"keep-alive" request
 //
 // The request Body, if non-nil, will be closed by the underlying
 // Transport, even on errors.
+// 如果request Body不为nil，则会被底层的Transport关闭，即使发生错误
 //
 // On error, any Response can be ignored. A non-nil Response with a
 // non-nil error only occurs when CheckRedirect fails, and even then
@@ -490,6 +526,9 @@ func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirect
 // provided that the Request.GetBody function is defined.
 // The NewRequest function automatically sets GetBody for common
 // standard library body types.
+// 如果server返回一个redirect，Client首先使用CheckRedirect函数检查是否该执行redirect
+// 如果允许的话，301，302，303会导致后续的requests使用HTTP的GET，没有body
+// 307或者308保留原先的HTTP method和body，假设Request.GetBOdy函数被定义
 func (c *Client) Do(req *Request) (*Response, error) {
 	if req.URL == nil {
 		req.closeBody()
@@ -625,6 +664,7 @@ func (c *Client) Do(req *Request) (*Response, error) {
 		}
 
 		var shouldRedirect bool
+		// 检测是否需要redirect
 		redirectMethod, shouldRedirect, includeBody = redirectBehavior(req.Method, resp, reqs[0])
 		if !shouldRedirect {
 			return resp, nil

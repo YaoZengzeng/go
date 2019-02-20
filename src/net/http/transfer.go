@@ -102,6 +102,7 @@ func newTransferWriter(r interface{}) (t *transferWriter, err error) {
 		t.Body = rr.Body
 		t.BodyCloser = rr.Body
 		t.ContentLength = rr.outgoingLength()
+		// 设置TransferEncoding
 		if t.ContentLength < 0 && len(t.TransferEncoding) == 0 && t.shouldSendChunkedRequestBody() {
 			t.TransferEncoding = []string{"chunked"}
 		}
@@ -425,6 +426,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	t := &transferReader{RequestMethod: "GET"}
 
 	// Unify input
+	// 统一输入
 	isResponse := false
 	switch rr := msg.(type) {
 	case *Response:
@@ -451,6 +453,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	}
 
 	// Default to HTTP/1.1
+	// 默认为HTTP/1.1
 	if t.ProtoMajor == 0 && t.ProtoMinor == 0 {
 		t.ProtoMajor, t.ProtoMinor = 1, 1
 	}
@@ -496,6 +499,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 
 	// Prepare body reader. ContentLength < 0 means chunked encoding
 	// or close connection when finished, since multipart is not supported yet
+	// 准备body reader
 	switch {
 	case chunked(t.TransferEncoding):
 		if noResponseBodyExpected(t.RequestMethod) || !bodyAllowedForStatus(t.StatusCode) {
@@ -506,6 +510,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	case realLength == 0:
 		t.Body = NoBody
 	case realLength > 0:
+		// 用body封装ReadCloser
 		t.Body = &body{src: io.LimitReader(r, realLength), closing: t.Close}
 	default:
 		// realLength < 0, i.e. "Content-Length" not mentioned in header
@@ -521,6 +526,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	// Unify output
 	switch rr := msg.(type) {
 	case *Request:
+		// 将获取的Body，ContentLength等等重新赋值会rr
 		rr.Body = t.Body
 		rr.ContentLength = t.ContentLength
 		rr.TransferEncoding = t.TransferEncoding
@@ -748,6 +754,7 @@ func fixTrailer(header Header, te []string) (Header, error) {
 // Close确保body已经被完全读取并且必要的话读取trailer
 type body struct {
 	src          io.Reader
+	// hdr为非nil，则意味着读取trailer
 	hdr          interface{}   // non-nil (Response or Request) value means read trailer
 	r            *bufio.Reader // underlying wire-format reader for the trailer
 	closing      bool          // is the connection to be closed after reading body?

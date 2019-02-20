@@ -23,6 +23,7 @@ import (
 
 // A Server is an HTTP server listening on a system-chosen port on the
 // local loopback interface, for use in end-to-end HTTP tests.
+// Server是一个监听在loopback上系统选择端口的HTTP server，用于e2e HTTP tests
 type Server struct {
 	URL      string // base URL of form http://ipaddr:port with no trailing slash
 	Listener net.Listener
@@ -60,6 +61,7 @@ func newLocalListener() net.Listener {
 		}
 		return l
 	}
+	// 监听到0号端口
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		if l, err = net.Listen("tcp6", "[::1]:0"); err != nil {
@@ -77,6 +79,8 @@ var serve = flag.String("httptest.serve", "", "if non-empty, httptest.NewServer 
 
 // NewServer starts and returns a new Server.
 // The caller should call Close when finished, to shut it down.
+// NewServer启动并且返回一个新的Server
+// 调用者需要在结束的时候调用Close，用于关闭
 func NewServer(handler http.Handler) *Server {
 	ts := NewUnstartedServer(handler)
 	ts.Start()
@@ -84,11 +88,14 @@ func NewServer(handler http.Handler) *Server {
 }
 
 // NewUnstartedServer returns a new Server but doesn't start it.
+// NewUnstartedServer返回一个新的Server但是不启动它
 //
 // After changing its configuration, the caller should call Start or
 // StartTLS.
+// 在更改配置之后，调用者应该调用Start或者StartTLS
 //
 // The caller should call Close when finished, to shut it down.
+// 调用者应该在结束之后调用Close，用于shut down
 func NewUnstartedServer(handler http.Handler) *Server {
 	return &Server{
 		Listener: newLocalListener(),
@@ -101,9 +108,11 @@ func (s *Server) Start() {
 	if s.URL != "" {
 		panic("Server already started")
 	}
+	// 创建HTTP client
 	if s.client == nil {
 		s.client = &http.Client{Transport: &http.Transport{}}
 	}
+	// 设置Server的URL为"http://127.0.0.1:0"
 	s.URL = "http://" + s.Listener.Addr().String()
 	s.wrap()
 	s.goServe()
@@ -169,6 +178,7 @@ type closeIdleTransport interface {
 
 // Close shuts down the server and blocks until all outstanding
 // requests on this server have completed.
+// Close关闭server并且阻塞直到这个server所有的outstanding requests都已经完成
 func (s *Server) Close() {
 	s.mu.Lock()
 	if !s.closed {
@@ -212,6 +222,7 @@ func (s *Server) Close() {
 	}
 
 	// Also close the client idle connections.
+	// 关闭client的idle connections
 	if s.client != nil {
 		if t, ok := s.client.Transport.(closeIdleTransport); ok {
 			t.CloseIdleConnections()
@@ -277,12 +288,14 @@ func (s *Server) goServe() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		// 运行Serve
 		s.Config.Serve(s.Listener)
 	}()
 }
 
 // wrap installs the connection state-tracking hook to know which
 // connections are idle.
+// wrap安装连接的state-tracking hook用于了解哪个连接处于idle
 func (s *Server) wrap() {
 	oldHook := s.Config.ConnState
 	s.Config.ConnState = func(c net.Conn, cs http.ConnState) {
@@ -308,6 +321,7 @@ func (s *Server) wrap() {
 		case http.StateActive:
 			if oldState, ok := s.conns[c]; ok {
 				if oldState != http.StateNew && oldState != http.StateIdle {
+					// Active之前的状态必须是New或者Idle，否则是非法的状态转移
 					panic("invalid state transition")
 				}
 				s.conns[c] = cs
@@ -323,8 +337,10 @@ func (s *Server) wrap() {
 				s.closeConn(c)
 			}
 		case http.StateHijacked, http.StateClosed:
+			// forgetConn从map中移除连接
 			s.forgetConn(c)
 		}
+		// oldHook不为空，执行oldHook
 		if oldHook != nil {
 			oldHook(c, cs)
 		}

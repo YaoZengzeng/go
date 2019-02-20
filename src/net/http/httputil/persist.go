@@ -172,6 +172,7 @@ func (sc *ServerConn) Pending() int {
 // Write writes resp in response to req. To close the connection gracefully, set the
 // Response.Close field to true. Write should be considered operational until
 // it returns an error, regardless of any errors returned on the Read side.
+// Write将response中的resp写入req，为了优雅地关闭连接，将Response.Close设置为true，
 func (sc *ServerConn) Write(req *http.Request, resp *http.Response) error {
 
 	// Retrieve the pipeline ID of this request/response pair
@@ -253,6 +254,7 @@ func NewClientConn(c net.Conn, r *bufio.Reader) *ClientConn {
 		c:        c,
 		r:        r,
 		pipereq:  make(map[*http.Request]uint),
+		// 就是http.Request的Write方法
 		writeReq: (*http.Request).Write,
 	}
 }
@@ -296,10 +298,14 @@ func (cc *ClientConn) Close() error {
 // keepalive connection is logically closed after this request and the opposing
 // server is informed. An ErrUnexpectedEOF indicates the remote closed the
 // underlying TCP connection, which is usually considered as graceful close.
+// Write写入一个request，如果在HTTP keepalive请求下连接被关闭则返回ErrPersistEOF
+// 如果req.Close为true，则keepalive connection会在这个request之后被逻辑关闭并且对端的
+// server会获得通知，ErrUnexpectedEOF表示远程已经关闭了底层的TCP连接，这通常被认为是graceful close
 func (cc *ClientConn) Write(req *http.Request) error {
 	var err error
 
 	// Ensure ordered execution of Writes
+	// 确保执行Write的顺序
 	id := cc.pipe.Next()
 	cc.pipe.StartRequest(id)
 	defer func() {
@@ -332,10 +338,12 @@ func (cc *ClientConn) Write(req *http.Request) error {
 	if req.Close {
 		// We write the EOF to the write-side error, because there
 		// still might be some pipelined reads
+		// 我们将EOF写入write-side error，因为可能还有一些pipelined reads
 		cc.we = ErrPersistEOF
 	}
 	cc.mu.Unlock()
 
+	// 写入请求
 	err = cc.writeReq(req, c)
 	cc.mu.Lock()
 	defer cc.mu.Unlock()

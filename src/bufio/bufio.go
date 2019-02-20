@@ -563,6 +563,7 @@ func (b *Writer) Reset(w io.Writer) {
 }
 
 // Flush writes any buffered data to the underlying io.Writer.
+// Flush将任何缓存的数据写入底层的io.Writer
 func (b *Writer) Flush() error {
 	if b.err != nil {
 		return b.err

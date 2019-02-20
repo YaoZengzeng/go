@@ -312,6 +312,8 @@ type Request struct {
 	// Response is the redirect response which caused this request
 	// to be created. This field is only populated during client
 	// redirects.
+	// Response是导致这个request产生的redirect response
+	// 该字段只有在client redirect时才会被设置
 	Response *Response
 
 	// ctx is either the client or server context. It should only
@@ -490,6 +492,8 @@ const defaultUserAgent = "Go-http-client/1.1"
 // If Body is present, Content-Length is <= 0 and TransferEncoding
 // hasn't been set to "identity", Write adds "Transfer-Encoding:
 // chunked" to the header. Body is closed after it is sent.
+// 如果Body存在，Content-Length小于等于0并且TransferEncoding没有被设置为"identity"
+// 写入"Transfer-Encoding: chunked"到header，Body会在它发送后被关闭
 func (r *Request) Write(w io.Writer) error {
 	return r.write(w, false, nil, nil)
 }
@@ -522,6 +526,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 
 	// Find the target host. Prefer the Host: header, but if that
 	// is not given, use the host from the request URL.
+	// 找到target host，优先使用Host: header，如果没有提供的话，使用request URL中的host
 	//
 	// Clean the host, in case it arrives with unexpected stuff in it.
 	host := cleanHost(r.Host)
@@ -529,6 +534,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 		if r.URL == nil {
 			return errMissingHost
 		}
+		// 使用r.URL.Host中的host
 		host = cleanHost(r.URL.Host)
 	}
 
@@ -542,6 +548,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 		ruri = r.URL.Scheme + "://" + host + ruri
 	} else if r.Method == "CONNECT" && r.URL.Path == "" {
 		// CONNECT requests normally give just the host and port, not a full URL.
+		// CONNECT请求通常只提供host和port，不提供完整的URL
 		ruri = host
 	}
 	// TODO(bradfitz): escape at least newlines in ruri?
@@ -550,18 +557,21 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	// Don't always call NewWriter, as that forces a bytes.Buffer
 	// and other small bufio Writers to have a minimum 4k buffer
 	// size.
+	// 如果writer还没有缓存，则将它封装进一个bufio Writer
 	var bw *bufio.Writer
 	if _, ok := w.(io.ByteWriter); !ok {
 		bw = bufio.NewWriter(w)
 		w = bw
 	}
 
+	// 写入头部信息
 	_, err = fmt.Fprintf(w, "%s %s HTTP/1.1\r\n", valueOrDefault(r.Method, "GET"), ruri)
 	if err != nil {
 		return err
 	}
 
 	// Header lines
+	// 写入Header lines
 	_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
 	if err != nil {
 		return err
@@ -581,6 +591,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	}
 
 	// Process Body,ContentLength,Close,Trailer
+	// 处理Body, ContentLength, Close以及Trailer
 	tw, err := newTransferWriter(r)
 	if err != nil {
 		return err
@@ -635,6 +646,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	}
 
 	// Write body and trailer
+	// 写入body以及trailer
 	err = tw.WriteBody(w)
 	if err != nil {
 		if tw.bodyReadError == err {
@@ -765,10 +777,13 @@ func validMethod(method string) bool {
 }
 
 // NewRequest returns a new Request given a method, URL, and optional body.
+// NewRequest用给定的method, URL以及可选的body，返回一个新的Request
 //
 // If the provided body is also an io.Closer, the returned
 // Request.Body is set to body and will be closed by the Client
 // methods Do, Post, and PostForm, and Transport.RoundTrip.
+// 如果提供的body也是io.Closer，返回的Request.Body设置为body并且会被Client
+// 的Do, Post以及PostForm以及Transport.RoundTrip关闭
 //
 // NewRequest returns a Request suitable for use with Client.Do or
 // Transport.RoundTrip. To create a request for use with testing a
@@ -782,6 +797,9 @@ func validMethod(method string) bool {
 // exact value (instead of -1), GetBody is populated (so 307 and 308
 // redirects can replay the body), and Body is set to NoBody if the
 // ContentLength is 0.
+// 如果body的类型为*bytes.Buffer, *bytes.Reader或者*strings.Reader
+// 返回的request的ContentLength设置为准确值（而不是-1）
+// 如果ContentLength为0，则Body设置为NoBody
 func NewRequest(method, url string, body io.Reader) (*Request, error) {
 	if method == "" {
 		// We document that "" means "GET" for Request.Method, and people have
@@ -798,6 +816,7 @@ func NewRequest(method, url string, body io.Reader) (*Request, error) {
 	}
 	rc, ok := body.(io.ReadCloser)
 	if !ok && body != nil {
+		// 封装一个io.ReadCloser
 		rc = ioutil.NopCloser(body)
 	}
 	// The host's colon:port should be normalized. See Issue 14836.
@@ -994,6 +1013,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	}
 
 	// Subsequent lines: Key: value.
+	// 获取Header
 	mimeHeader, err := tp.ReadMIMEHeader()
 	if err != nil {
 		return nil, err
@@ -1007,6 +1027,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	//	GET http://www.google.com/index.html HTTP/1.1
 	//	Host: doesntmatter
 	// the same. In the second case, any Host line is ignored.
+	// 对于第一行中有完整URL的情况，忽略Host字段
 	req.Host = req.URL.Host
 	if req.Host == "" {
 		req.Host = req.Header.get("Host")
@@ -1338,6 +1359,8 @@ func (r *Request) isReplayable() bool {
 
 // outgoingLength reports the Content-Length of this outgoing (Client) request.
 // It maps 0 into -1 (unknown) when the Body is non-nil.
+// outgoingLength返回客户端发出的请求的Content-Length
+// 如果Boby为非nil，则将0映射为-1
 func (r *Request) outgoingLength() int64 {
 	if r.Body == nil || r.Body == NoBody {
 		return 0

@@ -163,15 +163,20 @@ type ResponseWriter interface {
 
 // The Flusher interface is implemented by ResponseWriters that allow
 // an HTTP handler to flush buffered data to the client.
+// Flusher接口由ResponseWriter实现，允许HTTP handler将缓存的数据发送给client
 //
 // The default HTTP/1.x and HTTP/2 ResponseWriter implementations
 // support Flusher, but ResponseWriter wrappers may not. Handlers
 // should always test for this ability at runtime.
+// 默认的HTTP/1.x和HTTP/2的ResponseWriter都实现了对Flusher的支持，但是ResponseWriter
+// wrappers可能没有，Handlers总是应该在运行的时候对此进行测试
 //
 // Note that even for ResponseWriters that support Flush,
 // if the client is connected through an HTTP proxy,
 // the buffered data may not reach the client until the response
 // completes.
+// 需要注意的是，即使对于支持Flush的ResponseWriters，如果client通过一个HTTP proxy
+// 连接，缓存的数据也可能到达不了client，直到response完成
 type Flusher interface {
 	// Flush sends any buffered data to the client.
 	Flush()
@@ -213,19 +218,26 @@ type Hijacker interface {
 
 // The CloseNotifier interface is implemented by ResponseWriters which
 // allow detecting when the underlying connection has gone away.
+// CloseNotifier接口由ResponseWriters实现，它用来检测底层的连接是否断开
 //
 // This mechanism can be used to cancel long operations on the server
 // if the client has disconnected before the response is ready.
+// 这个机制可以用于取消服务端的long operations
+// 如果client在response准备好之前就已经断开连接的话
 type CloseNotifier interface {
 	// CloseNotify returns a channel that receives at most a
 	// single value (true) when the client connection has gone
 	// away.
+	// CloseNotify返回一个channel，它最多会收到一个值（true），当client的连接
+	// 断开的时候
 	//
 	// CloseNotify may wait to notify until Request.Body has been
 	// fully read.
+	// CloseNotify可能会等到Request.Body都已经完全读完之后再通知
 	//
 	// After the Handler has returned, there is no guarantee
 	// that the channel receives a value.
+	// 在Handler返回之后，并不保证channel接收到一个值
 	//
 	// If the protocol is HTTP/1.1 and CloseNotify is called while
 	// processing an idempotent request (such a GET) while
@@ -299,6 +311,7 @@ type conn struct {
 	bufr *bufio.Reader
 
 	// bufw writes to checkConnErrorWriter{c}, which populates werr on error.
+	// bufw写入checkConnErrorWriter{c}，它会在出现错误的时候填充werr
 	bufw *bufio.Writer
 
 	// lastMethod is the method of the most recent request
@@ -665,6 +678,9 @@ type readResult struct {
 // call blocked in a background goroutine to wait for activity and
 // trigger a CloseNotifier channel.
 // connReader是由*conn使用的io.Reader的wrapper
+// 它结合了一个选择性激活的io.LimitedReader（用于限制请求头部的读取大小）
+// 以及选择性地让一个io.Reader阻塞到后台的goroutine用于等待activity并且触发
+// 一个CloseNotifier channel
 type connReader struct {
 	conn *conn
 
@@ -2113,6 +2129,7 @@ func Redirect(w ResponseWriter, r *Request, url string, code int) {
 		}
 	}
 
+	// 在response的Header写入Location
 	w.Header().Set("Location", hexEscapeNonASCII(url))
 	if r.Method == "GET" || r.Method == "HEAD" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -2159,9 +2176,13 @@ func (rh *redirectHandler) ServeHTTP(w ResponseWriter, r *Request) {
 // RedirectHandler returns a request handler that redirects
 // each request it receives to the given url using the given
 // status code.
+// RedirectHandler返回一个request handler，它会重定向每个收到的请求到
+// 给定的url，使用给定的code
 //
 // The provided code should be in the 3xx range and is usually
 // StatusMovedPermanently, StatusFound or StatusSeeOther.
+// 提供的code必须在3xx的范围内，通常为StatusMovedPermanently, StatusFound
+// 或者StatusSeeOther
 func RedirectHandler(url string, code int) Handler {
 	return &redirectHandler{url, code}
 }
@@ -2170,6 +2191,8 @@ func RedirectHandler(url string, code int) Handler {
 // It matches the URL of each incoming request against a list of registered
 // patterns and calls the handler for the pattern that
 // most closely matches the URL.
+// ServeMux是一个HTTP请求的multiplexer
+// 它用得到的请求的URL匹配一系列已经注册的patterns并且调用和URL最匹配的pattern的handler
 //
 // Patterns name fixed, rooted paths, like "/favicon.ico",
 // or rooted subtrees, like "/images/" (note the trailing slash).
@@ -2183,6 +2206,7 @@ func RedirectHandler(url string, code int) Handler {
 // Note that since a pattern ending in a slash names a rooted subtree,
 // the pattern "/" matches all paths not matched by other registered
 // patterns, not just the URL with Path == "/".
+// pattern "/"用于匹配任何和所有其他已注册patterns不匹配的路径，而不仅仅是路径"/"
 //
 // If a subtree has been registered and a request is received naming the
 // subtree root without its trailing slash, ServeMux redirects that
@@ -2191,12 +2215,15 @@ func RedirectHandler(url string, code int) Handler {
 // the trailing slash. For example, registering "/images/" causes ServeMux
 // to redirect a request for "/images" to "/images/", unless "/images" has
 // been registered separately.
+// 注册了"/images"会导致ServeMux将发往"/images"的请求转发到"/images/"，除非"/images"
+// 已经另外注册了
 //
 // Patterns may optionally begin with a host name, restricting matches to
 // URLs on that host only. Host-specific patterns take precedence over
 // general patterns, so that a handler might register for the two patterns
 // "/codesearch" and "codesearch.google.com/" without also taking over
 // requests for "http://www.google.com/".
+// Host类型的patterns的优先级高于普通的patterns
 //
 // ServeMux also takes care of sanitizing the URL request path,
 // redirecting any request containing . or .. elements or repeated slashes
@@ -2204,6 +2231,7 @@ func RedirectHandler(url string, code int) Handler {
 type ServeMux struct {
 	mu    sync.RWMutex
 	m     map[string]muxEntry
+	// 是否任何的pattern包含hostnames
 	hosts bool // whether any patterns contain hostnames
 }
 
@@ -2213,9 +2241,11 @@ type muxEntry struct {
 }
 
 // NewServeMux allocates and returns a new ServeMux.
+// NewServeMux申请并且返回一个新的ServeMux
 func NewServeMux() *ServeMux { return new(ServeMux) }
 
 // DefaultServeMux is the default ServeMux used by Serve.
+// DefaultServeMux是Serve默认使用的ServeMux
 var DefaultServeMux = &defaultServeMux
 
 var defaultServeMux ServeMux
@@ -2291,6 +2321,9 @@ func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 // This occurs when a handler for path + "/" was already registered, but
 // not for path itself. If the path needs appending to, it creates a new
 // URL, setting the path to u.Path + "/" and returning true to indicate so.
+// redirectToPathSlash用于确定是否需要为给定的路径扩展"/"
+// 这种情况会出现在path + "/"的handler已经被注册，而path自己为被注册的情况
+// 如果路径需要进行扩展，它创建一个新的URL，将path设置为u.Path + "/"并且返回true
 func (mux *ServeMux) redirectToPathSlash(host, path string, u *url.URL) (*url.URL, bool) {
 	if !mux.shouldRedirect(host, path) {
 		return u, false
@@ -2331,15 +2364,22 @@ func (mux *ServeMux) shouldRedirect(host, path string) bool {
 // handler will be an internally-generated handler that redirects
 // to the canonical path. If the host contains a port, it is ignored
 // when matching handlers.
+// Handler根据r.Method，r.Host和r.URL.Path为给定的请求返还handler
+// 它总是返回一个非nil的handler，如果路径不是canonical form，则handler是一个
+// 内部生成的handler用于重定向到canonical path，如果host包含端口，则会在匹配pattern
+// 的时候被忽略
 //
 // The path and host are used unchanged for CONNECT requests.
+// 对于CONNECT类型的请求，path和host不被改变就使用
 //
 // Handler also returns the registered pattern that matches the
 // request or, in the case of internally-generated redirects,
 // the pattern that will match after following the redirect.
+// Handler同时会返回匹配请求的pattern，对于内部产生的handler,则会返回重定向后匹配的pattern
 //
 // If there is no registered handler that applies to the request,
 // Handler returns a ``page not found'' handler and an empty pattern.
+// 如果请求没有匹配的handler，则会返回一个``page not found``handler以及一个空的pattern
 func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
 
 	// CONNECT requests are not canonicalized.
@@ -2356,12 +2396,15 @@ func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
 
 	// All other requests have any port stripped and path cleaned
 	// before passing to mux.handler.
+	// 其他所有的请求都要剥离任何的port并且清理path，在传递到mux.handler之前
 	host := stripHostPort(r.Host)
 	path := cleanPath(r.URL.Path)
 
 	// If the given path is /tree and its handler is not registered,
 	// redirect for /tree/.
+	// 如果给定的路径是/tree并且相应的handler没有被注册，则重定向到/tree/
 	if u, ok := mux.redirectToPathSlash(host, path, r.URL); ok {
+		// 需要重定向，返回RedirectHandler
 		return RedirectHandler(u.String(), StatusMovedPermanently), u.Path
 	}
 
@@ -2396,6 +2439,7 @@ func (mux *ServeMux) handler(host, path string) (h Handler, pattern string) {
 
 // ServeHTTP dispatches the request to the handler whose
 // pattern most closely matches the request URL.
+// ServeHTTP将请求分发到相应的handler,它的pattern和请求的URL最匹配
 func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 	if r.RequestURI == "*" {
 		if r.ProtoAtLeast(1, 1) {
@@ -2410,6 +2454,8 @@ func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
+// Handle为给定的pattern注册handler
+// 如果该pattern已经有handler的话，则Handle会panic
 func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
@@ -2429,6 +2475,7 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	}
 	mux.m[pattern] = muxEntry{h: handler, pattern: pattern}
 
+	// 如果pattern不是以'/'开头，则mux.hosts设置为true
 	if pattern[0] != '/' {
 		mux.hosts = true
 	}
@@ -2498,23 +2545,31 @@ type Server struct {
 
 	// ReadTimeout is the maximum duration for reading the entire
 	// request, including the body.
+	// ReadTimeout是读取完整请求的时间间隔，包括body
 	//
 	// Because ReadTimeout does not let Handlers make per-request
 	// decisions on each request body's acceptable deadline or
 	// upload rate, most users will prefer to use
 	// ReadHeaderTimeout. It is valid to use them both.
+	// 因为ReadTimeout不允许Handlers决定每个请求的body的acceptable deadline
+	// 或者upload rate，因此用户更应该使用ReadHeaderTimeout
 	ReadTimeout time.Duration
 
 	// ReadHeaderTimeout is the amount of time allowed to read
 	// request headers. The connection's read deadline is reset
 	// after reading the headers and the Handler can decide what
 	// is considered too slow for the body.
+	// ReadHeaderTimeout是读取请求的headers允许的时间
+	// 连接的read deadline会被重置，当读取了headers之后，Handler会决定读取
+	// body是否太慢
 	ReadHeaderTimeout time.Duration
 
 	// WriteTimeout is the maximum duration before timing out
 	// writes of the response. It is reset whenever a new
 	// request's header is read. Like ReadTimeout, it does not
 	// let Handlers make decisions on a per-request basis.
+	// WriteTimeout是写response的最大时间间隔，当读取了新的请求的header之后
+	// 就会被重置，和ReadTimeout一样，它不允许Handler基于每个请求做决定
 	WriteTimeout time.Duration
 
 	// IdleTimeout is the maximum amount of time to wait for the

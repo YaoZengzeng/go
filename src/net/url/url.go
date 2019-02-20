@@ -441,11 +441,14 @@ func split(s string, c string, cutc bool) (string, string) {
 }
 
 // Parse parses rawurl into a URL structure.
+// Parse将rawurl解析道一个URL结构中
 //
 // The rawurl may be relative (a path, without a host) or absolute
 // (starting with a scheme). Trying to parse a hostname and path
 // without a scheme is invalid but may not necessarily return an
 // error, due to parsing ambiguities.
+// rawulr可能是相对的（一个路径，没有host）或者是绝对的（以scheme开头）
+// 解析一个没有scheme的hostname以及path是非法的，但是不一定会返回error
 func Parse(rawurl string) (*URL, error) {
 	// Cut off #frag
 	u, frag := split(rawurl, "#", true)

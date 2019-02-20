@@ -56,23 +56,33 @@ const DefaultMaxIdleConnsPerHost = 2
 
 // Transport is an implementation of RoundTripper that supports HTTP,
 // HTTPS, and HTTP proxies (for either HTTP or HTTPS with CONNECT).
+// Transport是RoundTripper的一个实现，支持HTTP, HTTPS以及HTTP proxies
 //
 // By default, Transport caches connections for future re-use.
 // This may leave many open connections when accessing many hosts.
 // This behavior can be managed using Transport's CloseIdleConnections method
 // and the MaxIdleConnsPerHost and DisableKeepAlives fields.
+// 默认情况下，Transport缓存连接用于以后重用，这可能会在访问很多hosts之后留下许多打开的连接
+// 该行为可以使用Transport的ClosedIdleConnections方法和MaxIdleConnsPerHost以及DisableKeepAlives
+// 字段进行管理
 //
 // Transports should be reused instead of created as needed.
 // Transports are safe for concurrent use by multiple goroutines.
+// Transports应该被重用而不是按需创建
+// Transports并发安全
 //
 // A Transport is a low-level primitive for making HTTP and HTTPS requests.
 // For high-level functionality, such as cookies and redirects, see Client.
+// Transport是创建HTTP以及HTTPS请求的底层原语，对于上层的功能，例如cookies以及重定向
+// 使用Client
 //
 // Transport uses HTTP/1.1 for HTTP URLs and either HTTP/1.1 or HTTP/2
 // for HTTPS URLs, depending on whether the server supports HTTP/2,
 // and how the Transport is configured. The DefaultTransport supports HTTP/2.
 // To explicitly enable HTTP/2 on a transport, use golang.org/x/net/http2
 // and call ConfigureTransport. See the package docs for more about HTTP/2.
+// DefaultTransport支持HTTP/2，为了在transport中显式地使能HTTP/2，使用golang.org/x/net/http2
+// 并且调用ConfigureTransport
 //
 // The Transport will send CONNECT requests to a proxy for its own use
 // when processing HTTPS requests, but Transport should generally not
@@ -82,6 +92,7 @@ const DefaultMaxIdleConnsPerHost = 2
 // being written while the response body is streamed. Go's HTTP/2
 // implementation does support full duplex, but many CONNECT proxies speak
 // HTTP/1.x.
+// Go的HTTP/2实现支持全双工，但是许多CONNECT proxies支持HTTP/1.x
 type Transport struct {
 	idleMu     sync.Mutex
 	wantIdle   bool                                // user has requested to close all idle conns

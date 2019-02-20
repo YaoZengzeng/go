@@ -15,6 +15,8 @@ import (
 
 // ResponseRecorder is an implementation of http.ResponseWriter that
 // records its mutations for later inspection in tests.
+// ResponseRecorder是http.ResponseWriter的一个实现
+// 记录了它的变化用于测试中以后的监测
 type ResponseRecorder struct {
 	// Code is the HTTP response code set by WriteHeader.
 	//
@@ -22,27 +24,38 @@ type ResponseRecorder struct {
 	// this might end up being 0, rather than the implicit
 	// http.StatusOK. To get the implicit value, use the Result
 	// method.
+	// Code是HTTP的response code，由WriteHeader设置
+	//
+	// 如果Handler从未调用WriteHeader或者Write，则Code最后可能为0，而不是http.StatusOK
+	// 为了获取http.StatusOK，使用Result方法
 	Code int
 
 	// HeaderMap contains the headers explicitly set by the Handler.
 	//
 	// To get the implicit headers set by the server (such as
 	// automatic Content-Type), use the Result method.
+	// 使用Result方法获取默认的headers（例如自动的Content-Type）
 	HeaderMap http.Header
 
 	// Body is the buffer to which the Handler's Write calls are sent.
 	// If nil, the Writes are silently discarded.
+	// Body是Handler的Write方法写入的缓存
+	// 如果为nil，则Writes方法默认丢弃数据
 	Body *bytes.Buffer
 
 	// Flushed is whether the Handler called Flush.
+	// Flushed表明Handler是否调用了Flush
 	Flushed bool
 
+	// 缓存Result的返回值
 	result      *http.Response // cache of Result's return value
+	// 第一次Write操作的HeaderMap的snapshot
 	snapHeader  http.Header    // snapshot of HeaderMap at first Write
 	wroteHeader bool
 }
 
 // NewRecorder returns an initialized ResponseRecorder.
+// NewRecorder返回一个初始化完成的ResponseRecorder
 func NewRecorder() *ResponseRecorder {
 	return &ResponseRecorder{
 		HeaderMap: make(http.Header),

@@ -87,6 +87,9 @@ func hexEscapeNonASCII(s string) string {
 // and Close always returns nil. It can be used in an outgoing client
 // request to explicitly signal that a request has zero bytes.
 // An alternative, however, is to simply set Request.Body to nil.
+// NoBody是一个没有字节的io.ReadCloser，Read总是返回EOF，Close总是返回nil
+// 它可以被用于outgoing client，用于显示地表示字节数为零的请求
+// 另外一个办法是直接将Request.Body设置为nil
 var NoBody = noBody{}
 
 type noBody struct{}

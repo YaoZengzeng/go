@@ -41,6 +41,8 @@ func readAll(r io.Reader, capacity int64) (b []byte, err error) {
 // A successful call returns err == nil, not err == EOF. Because ReadAll is
 // defined to read from src until EOF, it does not treat an EOF from Read
 // as an error to be reported.
+// ReadAll从r中读取直到error或者EOF，并且返回读取的数据
+// 一次成功的调用返回err == nil，而不是err == EOF
 func ReadAll(r io.Reader) ([]byte, error) {
 	return readAll(r, bytes.MinRead)
 }
