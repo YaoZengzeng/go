@@ -4,6 +4,7 @@
 
 // Package httptrace provides mechanisms to trace the events within
 // HTTP client requests.
+// httptrace包提供机制用于追踪HTTP client requests的事件
 package httptrace
 
 import (
@@ -20,6 +21,7 @@ type clientEventContextKey struct{}
 
 // ContextClientTrace returns the ClientTrace associated with the
 // provided context. If none, it returns nil.
+// ContextClientTrace返回和提供的context相关的ClientTrace，如果没有，则返回nil
 func ContextClientTrace(ctx context.Context) *ClientTrace {
 	trace, _ := ctx.Value(clientEventContextKey{}).(*ClientTrace)
 	return trace
@@ -30,6 +32,9 @@ func ContextClientTrace(ctx context.Context) *ClientTrace {
 // the provided trace hooks, in addition to any previous hooks
 // registered with ctx. Any hooks defined in the provided trace will
 // be called first.
+// WithClientTrace基于提供的parent ctx返回一个新的context，用返回的context
+// 创建的HTTP client requests会使用提供的trace hooks，以及任何之前的hooks已经
+// 注册的ctx，任何在trace中提供的hooks都会被优先调用
 func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	if trace == nil {
 		panic("nil trace")
@@ -37,6 +42,7 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	old := ContextClientTrace(ctx)
 	trace.compose(old)
 
+	// 用context.WithValue存入值，用ctx.Value获取值
 	ctx = context.WithValue(ctx, clientEventContextKey{}, trace)
 	if trace.hasNetHooks() {
 		nt := &nettrace.Trace{
@@ -70,10 +76,15 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 // HTTP request. Any particular hook may be nil. Functions may be
 // called concurrently from different goroutines and some may be called
 // after the request has completed or failed.
+// ClientTrace是一系列的hooks，会在一个outgoing HTTP request的各个阶段运行
+// 任何特定的hook都可能为nil，函数可能在不同的goroutines中并发运行，并且有些可能
+// 在请求完成或失败之后调用
 //
 // ClientTrace currently traces a single HTTP request & response
 // during a single round trip and has no hooks that span a series
 // of redirected requests.
+// ClientTrace当前仅在单个的round trip中追踪单个的HTTP request和response
+// 但是没有hooks横跨一系列的redirected requests
 //
 // See https://blog.golang.org/http-tracing for more.
 type ClientTrace struct {
@@ -81,12 +92,17 @@ type ClientTrace struct {
 	// retrieved from an idle pool. The hostPort is the
 	// "host:port" of the target or proxy. GetConn is called even
 	// if there's already an idle cached connection available.
+	// GetConn在连接创建或者从idle pool中取出之前被调用
+	// hostPort是target或者proxy的"host:port"，GetConn会被调用，即使已经
+	// 有一个idle cached connection
 	GetConn func(hostPort string)
 
 	// GotConn is called after a successful connection is
 	// obtained. There is no hook for failure to obtain a
 	// connection; instead, use the error from
 	// Transport.RoundTrip.
+	// GotConn在获取了一个成功的连接之后被调用，如果获取失败则不调用hook
+	// 反之，使用Transport.RoundTrip返回的error
 	GotConn func(GotConnInfo)
 
 	// PutIdleConn is called when the connection is returned to
@@ -97,10 +113,16 @@ type ClientTrace struct {
 	// PutIdleConn is called before the caller's Response.Body.Close
 	// call returns.
 	// For HTTP/2, this hook is not currently used.
+	// PutIdleConn在连接返回idle pool中被调用，如果err为nil，则连接成功地返回到
+	// idle pool，如果err为non-nil，则描述了为什么没有成功返回。PutIdleConn不会被
+	// 调用，如果connection reuse被Transport.DisableKeepAlives禁止
+	// PutIdleConn在调用者的Response.Body.Close返回前被调用
+	// HTTP/2不使用本hook
 	PutIdleConn func(err error)
 
 	// GotFirstResponseByte is called when the first byte of the response
 	// headers is available.
+	// GotFirstResponseByte在response headers的第一个字节可获取时被调用
 	GotFirstResponseByte func()
 
 	// Got100Continue is called if the server replies with a "100
@@ -108,6 +130,7 @@ type ClientTrace struct {
 	Got100Continue func()
 
 	// DNSStart is called when a DNS lookup begins.
+	// DNSStart在DNS lookup开始时被调用
 	DNSStart func(DNSStartInfo)
 
 	// DNSDone is called when a DNS lookup ends.
@@ -116,6 +139,7 @@ type ClientTrace struct {
 	// ConnectStart is called when a new connection's Dial begins.
 	// If net.Dialer.DualStack (IPv6 "Happy Eyeballs") support is
 	// enabled, this may be called multiple times.
+	// ConnectStart在一个新连接的Dial开始时被调用
 	ConnectStart func(network, addr string)
 
 	// ConnectDone is called when a new connection's Dial
@@ -123,20 +147,27 @@ type ClientTrace struct {
 	// connection completedly successfully.
 	// If net.Dialer.DualStack ("Happy Eyeballs") support is
 	// enabled, this may be called multiple times.
+	// ConnectDone在新连接的Dial结束时被调用，参数中提供的err表明是否
+	// 连接成功
 	ConnectDone func(network, addr string, err error)
 
 	// TLSHandshakeStart is called when the TLS handshake is started. When
 	// connecting to a HTTPS site via a HTTP proxy, the handshake happens after
 	// the CONNECT request is processed by the proxy.
+	// TLSHandshakeStart在TLS handshake启动时被调用，当通过一个HTTP proxy连接到HTTPS站点
+	// handshake在CONNECT请求被proxy处理前开始
 	TLSHandshakeStart func()
 
 	// TLSHandshakeDone is called after the TLS handshake with either the
 	// successful handshake's connection state, or a non-nil error on handshake
 	// failure.
+	// TLSHandshakeDone在TLS handshake之后被调用，要么提供一个成功的handshake的connection state
+	// 或者在handshake失败之后，提供一个非nil的error
 	TLSHandshakeDone func(tls.ConnectionState, error)
 
 	// WroteHeaders is called after the Transport has written
 	// the request headers.
+	// WroteHeaders在Transport写入request headers后被调用
 	WroteHeaders func()
 
 	// Wait100Continue is called if the Request specified
@@ -148,6 +179,8 @@ type ClientTrace struct {
 	// WroteRequest is called with the result of writing the
 	// request and any body. It may be called multiple times
 	// in the case of retried requests.
+	// WroteRequest在写入request以及任何body的时候被调用
+	// 这在retries requests情况下，可能被多次调用
 	WroteRequest func(WroteRequestInfo)
 }
 
@@ -160,6 +193,7 @@ type WroteRequestInfo struct {
 
 // compose modifies t such that it respects the previously-registered hooks in old,
 // subject to the composition policy requested in t.Compose.
+// compose修改t，从而它能够尊重在old中之前已经注册的hooks
 func (t *ClientTrace) compose(old *ClientTrace) {
 	if old == nil {
 		return
@@ -184,9 +218,11 @@ func (t *ClientTrace) compose(old *ClientTrace) {
 
 		// Make a copy of tf for tf to call. (Otherwise it
 		// creates a recursive call cycle and stack overflows)
+		// 创建一个tf的拷贝用于tf的调用
 		tfCopy := reflect.ValueOf(tf.Interface())
 
 		// We need to call both tf and of in some order.
+		// 我们要以一定的顺序调用tf和of
 		newFunc := reflect.MakeFunc(hookType, func(args []reflect.Value) []reflect.Value {
 			tfCopy.Call(args)
 			return of.Call(args)

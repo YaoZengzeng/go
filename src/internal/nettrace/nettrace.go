@@ -6,10 +6,13 @@
 // the net package. This package is purely internal for use by the
 // net/http/httptrace package and has no stable API exposed to end
 // users.
+// nettrace包含了internal hooks用于追踪net包的事件
+// 这个包完全是供net/http/httptrace内部使用而没有向外部用户暴露稳定的API
 package nettrace
 
 // TraceKey is a context.Context Value key. Its associated value should
 // be a *Trace struct.
+// TraceKey是一个context.Context Value的key，它相关的value应该是一个*Trace结构
 type TraceKey struct{}
 
 // LookupIPAltResolverKey is a context.Context Value key used by tests to
@@ -21,6 +24,8 @@ type LookupIPAltResolverKey struct{}
 
 // Trace contains a set of hooks for tracing events within
 // the net package. Any specific hook may be nil.
+// Trace包含了一系列的hooks用来追踪net包内的event
+// 任何特定的hook都可能为nil
 type Trace struct {
 	// DNSStart is called with the hostname of a DNS lookup
 	// before it begins.
